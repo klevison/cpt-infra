@@ -4,9 +4,14 @@
 
 aws_region = "eu-west-2"
 
-# Domínio apex servido pelo Phoenix
-domain            = "cpt.bet"
-route53_zone_name = "cpt.bet" # idêntico ao domain quando apex
+# Domínio + Route 53 — opcional no bootstrap inicial.
+# Em MVP sem dominio (default abaixo), acesso via http://<static_ip>/ direto.
+# Quando registrar cpt.bet em Route 53, descomentar e ativar:
+#   enable_route53    = true
+#   domain            = "cpt.bet"
+#   route53_zone_name = "cpt.bet"  # idêntico ao domain quando apex
+# enable_route53 = false
+# domain         = ""
 
 # Lightsail
 lightsail_bundle_id    = "medium_2_0" # 2 vCPU / 4 GB / 80 GB / $20

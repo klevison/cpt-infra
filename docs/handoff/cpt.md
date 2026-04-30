@@ -261,11 +261,17 @@ Já documentadas em `config/runtime.exs`. O `infra/` injeta via `/opt/cpt/.env` 
 | `DATABASE_URL` | `/cpt/prod/database_url` | `ecto://cpt:...@postgres:5432/cpt` |
 | `SECRET_KEY_BASE` | `/cpt/prod/secret_key_base` | 64 chars |
 | `INTERNAL_TOKEN` | `/cpt/prod/internal_token` | usado em `X-Internal-Token` (Publisher → Phoenix) |
-| `PHX_HOST` | `/cpt/prod/phx_host` | `cpt.bet` |
+| `PHX_HOST` | `/cpt/prod/phx_host` | domínio ou IP estático (sem domínio: IP do Lightsail) |
+| `PHX_SCHEME` | `/cpt/prod/phx_scheme` | `http` em IP-only, `https` quando `enable_route53=true` |
+| `PHX_PORT_URL` | `/cpt/prod/phx_port_url` | `80` em IP-only, `443` quando `enable_route53=true` |
 | `REDIS_URL` | `/cpt/prod/redis_url` | `redis://redis:6379/0` |
 | `PHX_SERVER` | `true` (Compose) | Phoenix listen ativo |
 | `MIX_ENV` | `prod` (Compose) | |
 | `PORT` | `4000` (Compose) | |
+
+> `runtime.exs` lê `PHX_SCHEME`/`PHX_PORT_URL` em `Endpoint.url` para que Phoenix
+> gere links coerentes com o que Caddy expõe externamente. Defaults `https`/`443`
+> preservam comportamento atual quando as envs não são setadas.
 
 ## Constraints de runtime
 

@@ -73,17 +73,42 @@ resource "aws_ssm_parameter" "ghcr_token" {
 
 # Configs gerenciados (Terraform reconcilia se mudar)
 
+# Em bootstrap sem dominio (var.enable_route53 = false ou var.domain = ""),
+# o IP estatico do Lightsail e usado como PHX_HOST. Phoenix gera URLs com IP
+# (http://<ip>/) em vez de https://cpt.bet/. Quando dominio for registrado:
+# `terraform apply -var domain=cpt.bet -var enable_route53=true` reconcilia.
+locals {
+  effective_host = var.domain != "" && var.enable_route53 ? var.domain : aws_lightsail_static_ip.cpt.ip_address
+}
+
 resource "aws_ssm_parameter" "phx_host" {
   name  = "${local.ssm_prefix}/phx_host"
   type  = "SecureString"
-  value = var.domain
+  value = local.effective_host
   tier  = "Standard"
 }
 
 resource "aws_ssm_parameter" "domain" {
   name  = "${local.ssm_prefix}/domain"
   type  = "SecureString"
-  value = var.domain
+  value = local.effective_host
+  tier  = "Standard"
+}
+
+# Em IP-only (enable_route53 = false), Caddy escuta em :80 sem TLS e
+# Phoenix gera URLs com scheme http e porta 80. Quando enable_route53 = true,
+# Caddy reativa TLS e Phoenix volta para o default https/443.
+resource "aws_ssm_parameter" "phx_scheme" {
+  name  = "${local.ssm_prefix}/phx_scheme"
+  type  = "SecureString"
+  value = var.enable_route53 ? "https" : "http"
+  tier  = "Standard"
+}
+
+resource "aws_ssm_parameter" "phx_port_url" {
+  name  = "${local.ssm_prefix}/phx_port_url"
+  type  = "SecureString"
+  value = var.enable_route53 ? "443" : "80"
   tier  = "Standard"
 }
 

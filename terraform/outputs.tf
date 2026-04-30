@@ -36,6 +36,11 @@ output "ssh_command" {
 }
 
 output "domain_a_record" {
-  description = "Domínio apex apontando para o IP estático."
-  value       = aws_route53_record.apex.fqdn
+  description = "Domínio apex apontando para o IP estático (vazio quando enable_route53 = false)."
+  value       = var.enable_route53 ? aws_route53_record.apex[0].fqdn : ""
+}
+
+output "phoenix_url" {
+  description = "URL para acessar o Phoenix (http://<ip>/ enquanto sem dominio; https://<dominio>/ quando enable_route53 = true)."
+  value       = var.enable_route53 ? "https://${var.domain}/" : "http://${aws_lightsail_static_ip.cpt.ip_address}/"
 }

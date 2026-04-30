@@ -5,13 +5,30 @@ variable "aws_region" {
 }
 
 variable "domain" {
-  description = "Domínio público que serve o Phoenix (apex). Ex: cpt.bet"
+  description = <<-EOT
+    Dominio publico que serve o Phoenix. Pode ficar vazio em bootstrap inicial
+    sem DNS — neste caso o IP estatico do Lightsail e usado como host (PHX_HOST,
+    URLs do Phoenix). Quando registrar dominio depois, setar aqui + ativar
+    enable_route53.
+  EOT
   type        = string
+  default     = ""
+}
+
+variable "enable_route53" {
+  description = <<-EOT
+    Quando true, gerencia o A record apex em Route 53 apontando para o static IP.
+    Requer route53_zone_name + domain preenchidos. Default false (bootstrap MVP
+    sem dominio — acesso via http://<ip>/ ate dominio ser registrado).
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "route53_zone_name" {
-  description = "Nome da hosted zone Route 53 (igual ao domain quando apex). Ex: cpt.bet"
+  description = "Nome da hosted zone Route 53 (igual ao domain quando apex). Ignorado se enable_route53 = false."
   type        = string
+  default     = ""
 }
 
 variable "lightsail_bundle_id" {

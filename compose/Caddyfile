@@ -1,12 +1,13 @@
-# Caddy — TLS automático Let's Encrypt + reverse proxy → phoenix:4000.
-# Pré-requisito: A record do {$DOMAIN} apontando pro IP estático ANTES do primeiro start
-# (LE rate-limita 5 falhas/hora por host).
+# Caddy em modo HTTP-only (bootstrap MVP sem dominio).
+# Quando registrar dominio em Route 53 e ativar enable_route53, trocar `:80`
+# por `{$DOMAIN}` para reabilitar TLS automatico Let's Encrypt.
+#
+# WebSocket LiveView funciona em reverse_proxy direto (Caddy detecta Upgrade).
+# Phoenix em prod aplica Plug.RewriteOn nesses headers.
 
-{$DOMAIN} {
+:80 {
     encode gzip zstd
 
-    # WebSocket LiveView funciona com reverse_proxy direto (Caddy 2 detecta
-    # Upgrade: websocket). Phoenix em prod aplica Plug.RewriteOn nesses headers.
     reverse_proxy phoenix:4000 {
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-For   {remote_host}

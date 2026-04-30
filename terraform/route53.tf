@@ -1,12 +1,15 @@
-# Route 53 — domínio registrado na própria AWS, então a hosted zone já existe
-# após o registro. Apenas referenciamos via data source e criamos o A record apex.
+# Route 53 — gerenciado apenas quando enable_route53 = true.
+# No bootstrap inicial sem dominio, este arquivo nao cria nada e o
+# acesso e direto via http://<static_ip>/ (Caddy escuta em :80 sem TLS).
 
 data "aws_route53_zone" "primary" {
-  name = var.route53_zone_name
+  count = var.enable_route53 ? 1 : 0
+  name  = var.route53_zone_name
 }
 
 resource "aws_route53_record" "apex" {
-  zone_id = data.aws_route53_zone.primary.zone_id
+  count   = var.enable_route53 ? 1 : 0
+  zone_id = data.aws_route53_zone.primary[0].zone_id
   name    = var.domain
   type    = "A"
   ttl     = 300
