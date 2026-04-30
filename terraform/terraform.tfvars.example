@@ -1,0 +1,38 @@
+# Copiar para terraform.tfvars (gitignored) e preencher antes de `terraform apply`.
+#
+# Variáveis sensíveis (ghcr_token) NUNCA podem ser commitadas.
+
+aws_region = "eu-west-2"
+
+# Domínio apex servido pelo Phoenix
+domain            = "cpt.bet"
+route53_zone_name = "cpt.bet" # idêntico ao domain quando apex
+
+# Lightsail
+lightsail_bundle_id    = "medium_2_0" # 2 vCPU / 4 GB / 80 GB / $20
+lightsail_blueprint_id = "ubuntu_24_04"
+instance_name          = "cpt-prod"
+
+# Key pair criado fora do Terraform via:
+#   aws lightsail create-key-pair --key-pair-name cpt-prod-key --region eu-west-2
+ssh_key_name = "cpt-prod-key"
+
+# Repo público que hospeda este infra/. user-data clona no boot.
+infra_repo_url = "https://github.com/klevison/cpt-infra.git"
+infra_repo_ref = "main"
+
+# GHCR
+ghcr_owner          = "klevison"
+cpt_image_tag       = "latest"
+publisher_image_tag = "latest"
+
+# OBRIGATÓRIO — PAT GitHub escopo read:packages.
+# Gerar em https://github.com/settings/tokens (classic) e colar aqui.
+# NUNCA commitar este arquivo.
+ghcr_token = "ghp_REPLACE_ME"
+
+# Restringir SSH ao seu IP após primeiro acesso (ex: ["203.0.113.42/32"])
+allowed_ssh_cidrs = ["0.0.0.0/0"]
+
+# Snapshot diário
+snapshot_time_of_day_utc = "03:00"

@@ -1,0 +1,34 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Tfvars com segredos (NUNCA commitar — só *.tfvars.example é versionado)
+terraform.tfvars
+*.auto.tfvars
+!*.tfvars.example
+
+# Compose env real (montado na instância via SSM)
+.env
+
+# Chaves SSH e certificados
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs e dumps
+*.log
+*.dump
+*.dump.gz
+
+# Editor / SO
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

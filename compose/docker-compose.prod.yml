@@ -1,0 +1,164 @@
+# Stack cpt_bet em produção — 1 host AWS Lightsail London.
+#
+# Variáveis ${...} são lidas do ./.env (provisionado no boot pelo user-data
+# via fetch_ssm que puxa SSM /cpt/prod/* e grava em /opt/cpt/.env).
+#
+# CRÍTICO:
+#   - Phoenix.stop_grace_period: 60s — terminate/2 chama XGROUP DELCONSUMER no Redis.
+#   - Publisher é SINGLETON HARD — nunca rodar com --scale > 1.
+#   - Postgres e Redis sem label watchtower — major upgrade é manual.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: "${DOMAIN}"
+    depends_on:
+      phoenix:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  phoenix:
+    image: ${CPT_IMAGE}
+    pull_policy: always
+    restart: unless-stopped
+    # CRÍTICO: terminate/2 faz XGROUP DELCONSUMER. Sem 60s, restart deixa
+    # consumers fantasmas no Redis e XAUTOCLAIM briga entre nós.
+    stop_grace_period: 60s
+    env_file: .env
+    environment:
+      PHX_SERVER: "true"
+      MIX_ENV: "prod"
+      PORT: "4000"
+    expose:
+      - "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # TCP probe — não depende de rota HTTP. Invocamos bash explicitamente
+      # porque debian:bookworm-slim usa dash (sem suporte /dev/tcp/).
+      # O Dockerfile do cpt/ instala bash propositalmente.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/4000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  publisher:
+    image: ${PUBLISHER_IMAGE}
+    pull_policy: always
+    restart: unless-stopped
+    # SINGLETON HARD — duplicaria entradas em todos os streams.
+    # Default stop_grace_period 10s OK (publisher não trata SIGTERM, cai em SIGKILL).
+    env_file: .env
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      PHOENIX_API_URL: "http://phoenix:4000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      phoenix:
+        condition: service_started
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "cpt"
+      POSTGRES_DB: "cpt"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cpt -d cpt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # SEM label watchtower — major upgrade é manual.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "1gb"
+      - "--maxmemory-policy"
+      - "noeviction"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # SEM label watchtower — major upgrade é manual.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/config.json:ro
+    command:
+      - "--interval"
+      - "300"
+      - "--label-enable"
+      - "--cleanup"
+      - "--include-restarting"
+    environment:
+      WATCHTOWER_NOTIFICATIONS_LEVEL: "warn"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  pg_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

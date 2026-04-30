@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -qE '(terraform\\.tfvars$|\\.auto\\.tfvars$|^\\.env$|/\\.env$)'; then echo 'Bloqueado: arquivos com segredos (terraform.tfvars, .env) so podem ser editados manualmente fora do Claude.' >&2; exit 2; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=\"$CLAUDE_TOOL_BASH_COMMAND\"; if echo \"$cmd\" | grep -qE 'terraform[[:space:]]+(apply|destroy)'; then if [ -d terraform ]; then (cd terraform && terraform fmt -check -recursive >/dev/null 2>&1) || { echo 'terraform fmt detectou desvios. Rode: cd terraform && terraform fmt -recursive' >&2; exit 2; }; fi; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
