@@ -13,81 +13,84 @@ imagem nova a cada 5min e re-cria o container Phoenix com graceful shutdown
 
 ## O que criar
 
-### 1. `Dockerfile` na raiz do repo
+### 1. `Dockerfile` + `.dockerignore` + `lib/cpt/release.ex` + `rel/overlays/`
 
-Multi-stage Phoenix release. Runtime baseado em `debian:bookworm-slim` com `bash`
-incluído (o healthcheck do Compose usa `/dev/tcp/localhost/4000`).
+Use o gerador oficial Phoenix em vez de escrever Dockerfile manual:
 
-```dockerfile
-# syntax=docker/dockerfile:1.7
-
-# ============================================================================
-# Estágio de build — compila release Elixir
-# ============================================================================
-FROM hexpm/elixir:1.19.5-erlang-28.4.1-debian-bookworm-20250203-slim AS build
-
-ENV MIX_ENV=prod \
-    LANG=C.UTF-8
-
-WORKDIR /app
-
-# pacotes nativos para deps de build (esbuild/tailwind/argon2 etc)
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends \
-       build-essential git curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mix local.hex --force && mix local.rebar --force
-
-# Cache de deps — copia só mix.* primeiro
-COPY mix.exs mix.lock ./
-COPY config ./config
-RUN mix deps.get --only prod && mix deps.compile
-
-# Código + assets
-COPY priv ./priv
-COPY assets ./assets
-COPY lib ./lib
-
-RUN mix assets.deploy
-RUN mix compile
-RUN mix release
-
-# ============================================================================
-# Runtime — debian slim com bash (healthcheck usa /dev/tcp/)
-# ============================================================================
-FROM debian:bookworm-slim AS runtime
-
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends \
-       libstdc++6 openssl libncurses6 locales ca-certificates bash \
-    && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    PHX_SERVER=true
-
-WORKDIR /app
-
-# Usuário não-root
-RUN useradd --system --user-group --create-home --home-dir /app/home cpt \
-    && chown -R cpt:cpt /app
-USER cpt
-
-COPY --from=build --chown=cpt:cpt /app/_build/prod/rel/cpt ./
-
-EXPOSE 4000
-
-CMD ["/app/bin/cpt", "start"]
+```bash
+cd ~/Development/cpt_bet/cpt/
+mix phx.gen.release --docker --otp 28.5
 ```
 
-> Confirmar nome do release em `mix.exs` — campo `:app` deve ser `:cpt`. Se for
-> outro nome, ajustar `bin/cpt` em duas linhas acima.
+Isso cria automaticamente:
+- `Dockerfile` (multi-stage, debian-trixie-slim, user `nobody`, CMD `/app/bin/server`)
+- `.dockerignore`
+- `lib/cpt/release.ex` (helper Ecto migrations sem mix em prod)
+- `rel/overlays/bin/{server, server.bat, migrate, migrate.bat}`
 
-### 2. `.github/workflows/build.yml`
+**Por que `--otp 28.5` em vez do `28.4.1` do `.tool-versions`?** Imagens
+`hexpm/elixir:1.19.5-erlang-28.4.1-debian-trixie-*` não estão publicadas; só
+`erlang-28.5`. Patch-level (28.4.1 vs 28.5) é funcionalmente equivalente.
 
-Build + push para GHCR a cada `main`.
+**Se Docker Hub retornar 504 durante o gen:** retry. É bug intermitente do CDN
+deles em queries com prefix-match longo (`name=...-trixie-`); resolve em
+segundos a minutos.
+
+### 2. Ajustes obrigatórios no Dockerfile gerado
+
+**(a) Adicionar `bash` no runtime stage** — o healthcheck do compose
+(`bash -c 'exec 3<>/dev/tcp/localhost/4000'`) precisa. Linha do `apt-get install`
+em `FROM ${RUNNER_IMAGE} AS final`:
+
+```dockerfile
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates bash \
+  && rm -rf /var/lib/apt/lists/*
+```
+
+**(b) Configurar repo privado Fluxon via BuildKit secret** — o `cpt/` usa
+`{:fluxon, "~> 2.3.5", repo: :fluxon}`. Sem isso, `mix deps.get` falha. Padrão
+oficial Fluxon (https://docs.fluxonui.com/fly.html#dockerfile): adicionar entre
+`mix local.hex` e `mix deps.get`:
+
+```dockerfile
+RUN --mount=type=secret,id=FLUXON_LICENSE_KEY \
+    mix hex.repo add fluxon https://repo.fluxonui.com \
+      --fetch-public-key "SHA256:zF8zWamOWgokeJdiIYgRl91ZBmQYnyXlxIOp3ralbos" \
+      --auth-key "$(cat /run/secrets/FLUXON_LICENSE_KEY)"
+```
+
+**NUNCA hardcode o auth-key no Dockerfile** — fica no histórico git e em layers.
+BuildKit secret garante que o valor passa só em RAM durante o build.
+
+### 3. Ajustes no `.dockerignore` gerado
+
+Adicionar logo após `.dockerignore`:
+
+```
+# Variaveis sensiveis e arquivos do SO (defesa em profundidade)
+.env
+.env.*
+.DS_Store
+```
+
+### 4. Ajustes no `.gitignore` do repo
+
+Adicionar (caso ainda não cubra):
+
+```
+# Variaveis de ambiente
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+```
+
+### 5. `.github/workflows/build.yml`
+
+Build + push para GHCR a cada `main`. Passa `FLUXON_LICENSE_KEY` como BuildKit secret:
 
 ```yaml
 name: build
@@ -139,13 +142,22 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit secret p/ Fluxon (https://docs.fluxonui.com/fly.html#dockerfile)
+          # Configurar em github.com/${owner}/cpt/settings/secrets/actions
+          secrets: |
+            FLUXON_LICENSE_KEY=${{ secrets.FLUXON_LICENSE_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 ```
 
-### 3. `.github/workflows/ci.yml`
+**Importante:** antes do primeiro build, adicionar `FLUXON_LICENSE_KEY` em
+`github.com/klevison/cpt/settings/secrets/actions`. Sem isso, `mix deps.get` falha.
 
-Roda `mix precommit` em PRs. Postgres é serviço para testes que dependem do banco.
+### 6. `.github/workflows/ci.yml`
+
+Roda `mix precommit` em PRs. Postgres é serviço; `cpt_test` é criado pelo
+próprio `mix ecto.create` (chamado pelo alias `mix test`). Fluxon precisa estar
+configurado antes do `mix deps.get`:
 
 ```yaml
 name: ci
@@ -162,11 +174,13 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
+        # cpt_test e criado pelo `mix ecto.create` (chamado por `mix test` alias).
+        # Apenas user/senha sao necessarios aqui.
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: cpt_test
-        ports: ['5432:5432']
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -192,13 +206,24 @@ jobs:
             deps
             _build
           key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
-          restore-keys: mix-${{ runner.os }}-
+          restore-keys: |
+            mix-${{ runner.os }}-
+
+      - name: Configurar repo privado Fluxon
+        env:
+          FLUXON_LICENSE_KEY: ${{ secrets.FLUXON_LICENSE_KEY }}
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix hex.repo add fluxon https://repo.fluxonui.com \
+            --fetch-public-key "SHA256:zF8zWamOWgokeJdiIYgRl91ZBmQYnyXlxIOp3ralbos" \
+            --auth-key "$FLUXON_LICENSE_KEY"
 
       - run: mix deps.get
       - run: mix precommit
 ```
 
-### 4. (Opcional, recomendado) Rota `GET /api/health`
+### 7. (Opcional, recomendado) Rota `GET /api/health`
 
 O healthcheck do Compose é TCP probe, então não depende de rota HTTP.
 Mas adicionar `/api/health` é útil para uptime monitor externo (UptimeRobot,
