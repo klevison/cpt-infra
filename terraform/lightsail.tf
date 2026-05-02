@@ -23,6 +23,20 @@ resource "aws_lightsail_instance" "cpt" {
   tags = {
     Name = var.instance_name
   }
+
+  lifecycle {
+    # `user_data` no schema do provider eh ForceNew — qualquer mudanca
+    # destruiria a instancia (perda de pg_data, redis_data). Como user_data
+    # so roda em first-boot mesmo, ignorar e semanticamente correto.
+    # Recriacao consciente: `terraform apply -replace=aws_lightsail_instance.cpt`
+    # (apenas com backup recente do pg_dump).
+    ignore_changes = [user_data]
+
+    # Defesa contra `terraform destroy` acidental (typo, dedo gordo, agente
+    # confuso). Para destroy legitimo: editar essa linha para `false` num
+    # commit dedicado, depois rodar destroy. Atrito deliberado.
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lightsail_static_ip_attachment" "cpt" {
