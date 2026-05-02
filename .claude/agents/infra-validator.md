@@ -1,6 +1,6 @@
 ---
 name: infra-validator
-description: Use proactively before commits importantes em infra/. Valida sintaxe Terraform, Compose YAML, Caddyfile, e busca padrões de segredos vazados em arquivos staged. Chamar com lista de arquivos modificados ou simplesmente "valide o repo todo".
+description: Use proactively before commits importantes em infra/. Valida sintaxe Terraform e Compose YAML, busca padrões de segredos vazados em arquivos staged. Chamar com lista de arquivos modificados ou simplesmente "valide o repo todo".
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---
@@ -37,17 +37,7 @@ rm -f .env
 exit $rc
 ```
 
-### 3. Caddyfile (opcional — só se `caddy` CLI presente)
-
-```bash
-if command -v caddy >/dev/null 2>&1; then
-  caddy validate --config compose/Caddyfile --adapter caddyfile
-fi
-```
-
-Se `caddy` não está instalado, pular silenciosamente — não é falha.
-
-### 4. Segredos em arquivos versionados
+### 3. Segredos em arquivos versionados
 
 Padrões a procurar:
 - `AKIA[A-Z0-9]{16}` — AWS access key
@@ -69,7 +59,7 @@ done
 Se não houver staged files (rodando fora de commit), aplicar a TUDO no working tree
 exceto `.gitignore`d.
 
-### 5. Sanidade básica
+### 4. Sanidade básica
 
 - `terraform/terraform.tfvars` NÃO pode estar versionado:
   ```bash
@@ -89,7 +79,6 @@ Use este formato exato:
 [PASS|FAIL] terraform fmt
 [PASS|FAIL] terraform validate
 [PASS|FAIL] docker compose config
-[PASS|FAIL|SKIP] caddyfile
 [PASS|FAIL] secrets scan
 [PASS|FAIL] sanidade
 ======================

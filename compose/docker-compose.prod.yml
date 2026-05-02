@@ -9,27 +9,6 @@
 #   - Postgres e Redis sem label watchtower — major upgrade é manual.
 
 services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      DOMAIN: "${DOMAIN}"
-    depends_on:
-      phoenix:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-
   phoenix:
     image: ${CPT_IMAGE}
     pull_policy: always
@@ -42,8 +21,13 @@ services:
       PHX_SERVER: "true"
       MIX_ENV: "prod"
       PORT: "4000"
-    expose:
-      - "4000"
+    # Em MVP IP-only (sem Caddy à frente), Phoenix continua bindando :4000
+    # internamente e o Compose mapeia host :80 → container :4000. Mantém o
+    # release rodando como user `nobody` sem capability extra (bind <1024).
+    # Quando Caddy voltar com `cpt.bet`, trocar `ports` por `expose: ["4000"]`
+    # — vide docs/caddy-reintro.md.
+    ports:
+      - "80:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,5 +144,3 @@ services:
 volumes:
   pg_data:
   redis_data:
-  caddy_data:
-  caddy_config:

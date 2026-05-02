@@ -8,22 +8,28 @@ Infraestrutura da stack `cpt_bet` (Phoenix LiveView + Publisher Python WS→Redi
 ┌─────────────────────────────────────────────────────────────────┐
 │  AWS Lightsail (eu-west-2, medium_2_0 — 2 vCPU / 4 GB / 80 GB)  │
 │                                                                 │
-│  ┌────────┐  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌─────┐  │
-│  │ caddy  │←→│ phoenix │  │ publisher │  │ postgres │  │redis│  │
-│  │ :80/443│  │ :4000   │  │           │  │          │  │     │  │
-│  └────┬───┘  └────┬────┘  └─────┬─────┘  └────┬─────┘  └──┬──┘  │
-│       │           │             │             │           │     │
-│       └───────────┴─────────────┴─────────────┴───────────┘     │
-│                          (bridge net)                           │
+│  ┌─────────────┐  ┌───────────┐  ┌──────────┐  ┌─────┐          │
+│  │ phoenix     │  │ publisher │  │ postgres │  │redis│          │
+│  │ host :80 ←  │  │           │  │          │  │     │          │
+│  │ container   │  │           │  │          │  │     │          │
+│  │ :4000       │  │           │  │          │  │     │          │
+│  └─────┬───────┘  └─────┬─────┘  └────┬─────┘  └──┬──┘          │
+│        │                │             │           │             │
+│        └────────────────┴─────────────┴───────────┘             │
+│                       (bridge net)                              │
 │  ┌──────────────┐                                               │
 │  │  watchtower  │ ← polling 5min, pull GHCR (apenas phoenix +   │
 │  └──────────────┘   publisher; postgres/redis manuais)          │
 └─────────────────────────────────────────────────────────────────┘
-       │                                                  │
-   Caddy ACME                                       cron 04:00 UTC
-       │                                                  │
-   Let's Encrypt                                  pg_dump → S3 (Glacier IR 30d)
+                                                          │
+                                                    cron 04:00 UTC
+                                                          │
+                                          pg_dump → S3 (Glacier IR 30d)
 ```
+
+> MVP IP-only (sem `cpt.bet` ainda): acesso direto via `http://<static_ip>/`. Caddy
+> + TLS Let's Encrypt voltam quando o domínio for registrado — vide
+> [`docs/caddy-reintro.md`](docs/caddy-reintro.md).
 
 Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou [klevison/wh-publisher](https://github.com/klevison/wh-publisher) → GHA build → push GHCR → Watchtower detecta SHA novo → graceful recreate.
 
@@ -32,7 +38,7 @@ Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou 
 | Diretório | Conteúdo |
 |---|---|
 | `terraform/` | Provisionamento AWS (Lightsail, IAM, SSM, S3, Route 53) |
-| `compose/` | `docker-compose.prod.yml`, `Caddyfile`, `.env.example` |
+| `compose/` | `docker-compose.prod.yml`, `.env.example` (Caddyfile removido — vide `docs/caddy-reintro.md`) |
 | `scripts/` | `backup.sh`, `restore.sh`, `refresh-env.sh`, `bootstrap-secrets.sh`, `ssh.sh` |
 | `docs/` | `deploy.md` (provisionar), `runbook.md` (operar), `secrets.md` (rotacionar) |
 | `docs/handoff/` | Instruções standalone para os repos `cpt/` e `wh-publisher/` |
@@ -40,7 +46,7 @@ Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou 
 
 ## Custo mensal
 
-~$22 USD: Lightsail $20 + S3 backups $0.50 + Route 53 zone $0.50 + IAM/SSM/KMS $0.
+~$20.50 USD em IP-only: Lightsail $20 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$22 total) + custo único de registro do domínio.
 
 ## Como começar
 

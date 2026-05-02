@@ -88,16 +88,10 @@ resource "aws_ssm_parameter" "phx_host" {
   tier  = "Standard"
 }
 
-resource "aws_ssm_parameter" "domain" {
-  name  = "${local.ssm_prefix}/domain"
-  type  = "SecureString"
-  value = local.effective_host
-  tier  = "Standard"
-}
-
-# Em IP-only (enable_route53 = false), Caddy escuta em :80 sem TLS e
-# Phoenix gera URLs com scheme http e porta 80. Quando enable_route53 = true,
-# Caddy reativa TLS e Phoenix volta para o default https/443.
+# Em IP-only (enable_route53 = false), Phoenix expoe :4000 internamente e
+# o Compose mapeia host :80 -> container :4000 (sem Caddy). Phoenix gera
+# URLs com scheme http e porta 80. Quando enable_route53 = true, Caddy
+# volta a frente (vide docs/caddy-reintro.md) e Phoenix usa https/443.
 resource "aws_ssm_parameter" "phx_scheme" {
   name  = "${local.ssm_prefix}/phx_scheme"
   type  = "SecureString"

@@ -17,7 +17,7 @@ Slash command: `/cpt-ssh "comando"`.
 ```bash
 ./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f phoenix"
 ./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f publisher"
-./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 caddy"
+./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f watchtower"
 ```
 
 Slash command: `/cpt-logs <service>`.
@@ -32,9 +32,6 @@ Limite de retenção: `json-file max-size: 10m, max-file: 5` por container (50 M
 
 # Publisher — perda de eventos durante ~30s de reconnect com WH. Evitar em horário de jogo.
 ./scripts/ssh.sh "cd /opt/cpt && docker compose restart publisher"
-
-# Caddy
-./scripts/ssh.sh "cd /opt/cpt && docker compose restart caddy"
 ```
 
 ## Forçar deploy de imagem nova (Watchtower normalmente faz)
@@ -131,7 +128,8 @@ Lightsail medium_2_0 = 4 GB RAM. Distribuição esperada:
 - Postgres: ~256 MB (`shared_buffers` default 128 MB + work_mem)
 - Redis: até 1 GB (`maxmemory 1gb`)
 - Publisher Python: ~150 MB
-- Caddy + Watchtower + SO: ~400 MB
+- Watchtower + SO: ~250 MB
+- (Caddy retornará com ~20–40 MB extra quando reintroduzido com domínio)
 
 Margem fina — monitorar:
 ```bash

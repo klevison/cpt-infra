@@ -12,7 +12,7 @@
 #   5. exportar AWS_SHARED_CREDENTIALS_FILE
 #   6. clonar infra-repo
 #   7. fetch_ssm() → /opt/cpt/.env
-#   8. symlinks compose + Caddyfile
+#   8. symlink do compose YAML
 #   9. docker login ghcr.io
 #  10. cron de backup
 #  11. docker compose up -d
@@ -110,9 +110,8 @@ fetch_ssm() {
 }
 fetch_ssm
 
-# 8. symlinks
+# 8. symlink do compose YAML
 ln -sf /opt/cpt/infra/compose/docker-compose.prod.yml /opt/cpt/docker-compose.yml
-cp /opt/cpt/infra/compose/Caddyfile /opt/cpt/Caddyfile
 
 # 9. docker login ghcr.io (lê GHCR_USER e GHCR_TOKEN do .env)
 set +x  # não logar token

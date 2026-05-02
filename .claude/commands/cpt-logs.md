@@ -8,7 +8,7 @@ Use `scripts/ssh.sh` para rodar `docker compose logs` no serviço pedido.
 
 ## Argumentos
 
-- `$1` — nome do service (`phoenix`, `publisher`, `caddy`, `postgres`, `redis`, `watchtower`).
+- `$1` — nome do service (`phoenix`, `publisher`, `postgres`, `redis`, `watchtower`).
 - `$2` — quantidade de linhas (opcional, default 200).
 
 ## O que fazer

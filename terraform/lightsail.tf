@@ -47,6 +47,9 @@ resource "aws_lightsail_instance_public_ports" "cpt" {
     cidrs     = ["0.0.0.0/0"]
   }
 
+  # 443 fica aberta sem listener atual (Caddy removido do MVP IP-only).
+  # Lightsail nao cobra por porta sem trafego e a abertura ja pronta deixa o
+  # caminho livre quando Caddy voltar com `cpt.bet` (vide docs/caddy-reintro.md).
   port_info {
     from_port = 443
     to_port   = 443

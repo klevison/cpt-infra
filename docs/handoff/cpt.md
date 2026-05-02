@@ -270,8 +270,9 @@ Já documentadas em `config/runtime.exs`. O `infra/` injeta via `/opt/cpt/.env` 
 | `PORT` | `4000` (Compose) | |
 
 > `runtime.exs` lê `PHX_SCHEME`/`PHX_PORT_URL` em `Endpoint.url` para que Phoenix
-> gere links coerentes com o que Caddy expõe externamente. Defaults `https`/`443`
-> preservam comportamento atual quando as envs não são setadas.
+> gere links coerentes com a porta exposta externamente (no MVP IP-only:
+> `http`/`80`; com domínio + Caddy: `https`/`443`). Defaults `https`/`443`
+> preservam comportamento de prod quando as envs não são setadas.
 
 ## Constraints de runtime
 

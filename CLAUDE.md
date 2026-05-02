@@ -11,11 +11,11 @@ Este arquivo é instrução durável para qualquer instância do Claude Code que
 ## Contexto da stack (resumo)
 
 - 1 host AWS Lightsail London (`eu-west-2`, plano `medium_2_0`, $20/mês).
-- 6 containers num único `docker-compose.prod.yml`: caddy, phoenix, publisher, postgres, redis, watchtower.
+- 5 containers num único `docker-compose.prod.yml`: phoenix, publisher, postgres, redis, watchtower. Phoenix expõe `host:80 → container:4000` direto, sem reverse proxy à frente.
 - Phoenix consome 5 Redis Streams via `XREADGROUP` em consumer groups dedicados (`cpt_phoenix_soccer*`).
 - Publisher Python lê WS Diffusion da William Hill, publica em 8 streams + 2 pub/sub channels.
 - Postgres é fonte de verdade. Backup `pg_dump` diário 04:00 UTC → S3 com lifecycle Glacier IR 30d.
-- Domínio `cpt.bet` apex em Route 53 (mesma conta AWS).
+- **MVP IP-only:** sem domínio. Acesso por `http://<static_ip>/`. Quando `cpt.bet` for registrado, Caddy volta com TLS automático — vide `docs/caddy-reintro.md`.
 
 ## Constraints duras (gotchas que matam silenciosamente)
 

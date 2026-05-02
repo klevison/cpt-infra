@@ -121,11 +121,13 @@ Espere a linha `[bootstrap] concluído`.
 ## 10. Verificar
 
 ```bash
-# DNS
-dig cpt.bet A +short
+# Acesso direto (MVP IP-only — sem domínio, sem TLS)
+IP=$(terraform output -raw instance_public_ip)
+curl -I "http://${IP}/live-events"
 
-# TLS (Caddy emite cert ACME no primeiro request HTTP)
-curl -I https://cpt.bet/live-events
+# Quando registrar cpt.bet e ativar enable_route53=true:
+#   dig cpt.bet A +short
+#   curl -I https://cpt.bet/live-events   # ver docs/caddy-reintro.md
 
 # Publisher conectado na WH
 ../scripts/ssh.sh "cd /opt/cpt && docker compose logs publisher --tail=50 | grep -E '(CONNECTED|WS connected)'"
