@@ -123,7 +123,7 @@ Em caso de falha: restore do snapshot Lightsail + dump do passo 1.
 
 ## Capacity / sizing
 
-Lightsail medium_2_0 = 4 GB RAM. Distribuição esperada:
+Lightsail medium_3_0 = 4 GB RAM. Distribuição esperada:
 - BEAM (phoenix): ~800 MB
 - Postgres: ~256 MB (`shared_buffers` default 128 MB + work_mem)
 - Redis: até 1 GB (`maxmemory 1gb`)
@@ -136,7 +136,7 @@ Margem fina — monitorar:
 ./scripts/ssh.sh "free -h && docker stats --no-stream"
 ```
 
-Se RAM apertar persistentemente, considerar plano `large_2_0` ($40, 8 GB).
+Se RAM apertar persistentemente, considerar plano `large_3_0` ($44, 8 GB).
 
 ## Apagar instância (catastrófico)
 

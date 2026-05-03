@@ -6,7 +6,7 @@ Infraestrutura da stack `cpt_bet` (Phoenix LiveView + Publisher Python WS→Redi
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  AWS Lightsail (eu-west-2, medium_2_0 — 2 vCPU / 4 GB / 80 GB)  │
+│  AWS Lightsail (eu-west-2, medium_3_0 — 2 vCPU / 4 GB / 80 GB)  │
 │                                                                 │
 │  ┌─────────────┐  ┌───────────┐  ┌──────────┐  ┌─────┐          │
 │  │ phoenix     │  │ publisher │  │ postgres │  │redis│          │
@@ -46,7 +46,7 @@ Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou 
 
 ## Custo mensal
 
-~$20.50 USD em IP-only: Lightsail $20 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$22 total) + custo único de registro do domínio.
+~$24.50 USD em IP-only: Lightsail medium_3_0 $24 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$25 total) + custo único de registro do domínio.
 
 ## Como começar
 

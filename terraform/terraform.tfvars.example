@@ -14,7 +14,7 @@ aws_region = "eu-west-2"
 # domain         = ""
 
 # Lightsail
-lightsail_bundle_id    = "medium_2_0" # 2 vCPU / 4 GB / 80 GB / $20
+lightsail_bundle_id    = "medium_3_0" # 2 vCPU / 4 GB / 80 GB / 4 TB / $24 (London)
 lightsail_blueprint_id = "ubuntu_24_04"
 instance_name          = "cpt-prod"
 

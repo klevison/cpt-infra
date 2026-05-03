@@ -32,9 +32,9 @@ variable "route53_zone_name" {
 }
 
 variable "lightsail_bundle_id" {
-  description = "Plano Lightsail. medium_2_0 = 2 vCPU / 4 GB / 80 GB / 3 TB / $20."
+  description = "Plano Lightsail. medium_3_0 = 2 vCPU / 4 GB / 80 GB / 4 TB / $24 (London)."
   type        = string
-  default     = "medium_2_0"
+  default     = "medium_3_0"
 }
 
 variable "lightsail_blueprint_id" {

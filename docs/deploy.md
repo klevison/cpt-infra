@@ -154,4 +154,4 @@ Depois `terraform apply`.
 
 ## Custo mensal esperado
 
-~$22 USD: Lightsail $20 + S3 backups $0.50 + Route 53 $0.50 + IAM/SSM/KMS $0.
+IP-only (sem dominio): ~$24.50 USD. Lightsail medium_3_0 $24 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$25 total) + custo único de registro do domínio.
