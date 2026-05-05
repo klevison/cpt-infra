@@ -122,7 +122,10 @@ services:
         max-file: "5"
 
   watchtower:
-    image: containrrr/watchtower
+    # Pinar versao especifica — `latest` em containrrr/watchtower usa cliente
+    # Docker antigo (API 1.25) incompativel com daemons modernos (>= 1.40).
+    # 1.7.1 (Apr 2024) eh o ultimo release oficial e suporta APIs mais novas.
+    image: containrrr/watchtower:1.7.1
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
