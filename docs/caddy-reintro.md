@@ -100,7 +100,30 @@ resource "aws_ssm_parameter" "domain" {
 }
 ```
 
-## Passo 4 — Restaurar `cp Caddyfile` em `terraform/user_data.sh`
+## Passo 4 — Re-habilitar `force_ssl` em `cpt/config/prod.exs`
+
+Durante MVP IP-only o `force_ssl` foi removido (Phoenix em compile-time
+redireciona HTTP -> HTTPS sem ter TLS pra qual ir). Restaurar o bloco
+comentado em `cpt/config/prod.exs`:
+
+```elixir
+config :cpt, CptWeb.Endpoint,
+  force_ssl: [
+    rewrite_on: [:x_forwarded_proto],
+    exclude: [
+      hosts: ["localhost", "127.0.0.1"]
+    ]
+  ]
+```
+
+`rewrite_on: [:x_forwarded_proto]` faz Phoenix confiar no header
+`X-Forwarded-Proto: https` que Caddy injeta. **Necessario** porque sem isso
+Phoenix vai entrar em loop de redirect (Caddy faz HTTPS->Phoenix HTTP, Phoenix
+tenta forçar HTTPS de novo).
+
+Commit + push em `cpt/`, aguardar build, `docker compose pull phoenix && up -d`.
+
+## Passo 5 — Restaurar `cp Caddyfile` em `terraform/user_data.sh`
 
 Na seção "8. symlink do compose YAML", adicionar a linha de cópia de volta:
 ```bash

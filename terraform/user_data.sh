@@ -1,25 +1,30 @@
-#!/usr/bin/env bash
-# Bootstrap da instância Lightsail cpt-prod.
+#!/bin/sh
+# Bootstrap da instancia Lightsail cpt-prod.
 # Renderizado por terraform via templatefile().
-# Convenção: variáveis interpoladas por Terraform aparecem sem escape (aws_region, ssm_prefix, etc).
-# Variáveis bash que devem chegar literais ao shell usam $${VAR} (escape do templatefile).
+# Convencao: variaveis interpoladas por Terraform aparecem sem escape (aws_region, ssm_prefix, etc).
+# Variaveis shell que devem chegar literais ao shell usam $${VAR} (escape do templatefile).
 #
 # Ordem:
 #   1. instalar pacotes base
 #   2. instalar Docker oficial + plugin compose
-#   3. configurar /etc/docker/daemon.json (rotação de log)
+#   3. configurar /etc/docker/daemon.json (rotacao de log)
 #   4. instalar AWS CLI v2
 #   5. exportar AWS_SHARED_CREDENTIALS_FILE
 #   6. clonar infra-repo
-#   7. fetch_ssm() → /opt/cpt/.env
+#   7. fetch_ssm() -> /opt/cpt/.env
 #   8. symlink do compose YAML
 #   9. docker login ghcr.io
 #  10. cron de backup
 #  11. docker compose up -d
-#  12. healthcheck pós-boot
+#  12. healthcheck pos-boot
+#
+# IMPORTANTE 1: ASCII puro. Acentos/setas quebram cloud-init em algumas conf.
+# IMPORTANTE 2: POSIX sh-compatible (NAO bash). Lightsail prepende seu proprio
+# `#!/bin/sh` ao user_data, fazendo cloud-init rodar TUDO via dash. Bashisms
+# como `set -o pipefail` ou `exec > >(tee ...)` falham. Manter compativel.
 
-set -euxo pipefail
-exec > >(tee -a /var/log/cpt-bootstrap.log) 2>&1
+set -eux
+exec >> /var/log/cpt-bootstrap.log 2>&1
 
 echo "[bootstrap] $(date -u +%FT%TZ) iniciando"
 
@@ -27,6 +32,19 @@ AWS_REGION="${aws_region}"
 SSM_PREFIX="${ssm_prefix}"
 INFRA_REPO_URL="${infra_repo_url}"
 INFRA_REPO_REF="${infra_repo_ref}"
+
+# 0. gravar credenciais AWS para acesso a SSM/S3 (IAM user cpt-instance-bootstrap).
+# Lightsail nao tem IAM instance role, entao chave estatica em arquivo 0600 root.
+mkdir -p /etc/cpt
+umask 077
+cat > /etc/cpt/aws_credentials <<EOF
+[default]
+aws_access_key_id = ${aws_access_key_id}
+aws_secret_access_key = ${aws_secret_access_key}
+region = ${aws_region}
+EOF
+umask 022
+chmod 600 /etc/cpt/aws_credentials
 
 export AWS_SHARED_CREDENTIALS_FILE=/etc/cpt/aws_credentials
 export AWS_DEFAULT_REGION="$AWS_REGION"
@@ -45,18 +63,20 @@ apt-get install -y \
 
 # 2. Docker oficial + compose plugin
 install -m 0755 -d /etc/apt/keyrings
+rm -f /etc/apt/keyrings/docker.gpg
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  | gpg --batch --yes --no-tty --dearmor -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 
-UBUNTU_CODENAME=$(. /etc/os-release && echo "$${VERSION_CODENAME}")
+. /etc/os-release
+UBUNTU_CODENAME="$${VERSION_CODENAME}"
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $${UBUNTU_CODENAME} stable" \
   > /etc/apt/sources.list.d/docker.list
 
 apt-get update -o Acquire::Retries=3
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# 3. daemon.json — rotação de log
+# 3. daemon.json -- rotacao de log
 mkdir -p /etc/docker
 cat > /etc/docker/daemon.json <<'EOF'
 {
@@ -94,7 +114,7 @@ if [ ! -d /opt/cpt/infra/.git ]; then
   git clone --depth=1 --branch="$INFRA_REPO_REF" "$INFRA_REPO_URL" /opt/cpt/infra
 fi
 
-# 7. fetch_ssm — pull SSM /cpt/prod/* → /opt/cpt/.env
+# 7. fetch_ssm -- pull SSM /cpt/prod/* -> /opt/cpt/.env
 fetch_ssm() {
   local out=/opt/cpt/.env
   install -m 0600 /dev/null "$out"
@@ -113,8 +133,8 @@ fetch_ssm
 # 8. symlink do compose YAML
 ln -sf /opt/cpt/infra/compose/docker-compose.prod.yml /opt/cpt/docker-compose.yml
 
-# 9. docker login ghcr.io (lê GHCR_USER e GHCR_TOKEN do .env)
-set +x  # não logar token
+# 9. docker login ghcr.io (le GHCR_USER e GHCR_TOKEN do .env)
+set +x  # nao logar token
 # shellcheck disable=SC1091
 . /opt/cpt/.env
 echo "$${GHCR_TOKEN}" | docker login ghcr.io -u "$${GHCR_USER}" --password-stdin
@@ -122,7 +142,7 @@ set -x
 
 # 10. cron de backup pg_dump
 cat > /etc/cron.d/cpt-backup <<'EOF'
-# pg_dump diário 04:00 UTC → S3 (Glacier IR aos 30d)
+# pg_dump diario 04:00 UTC -> S3 (Glacier IR aos 30d)
 0 4 * * * root /opt/cpt/infra/scripts/backup.sh >> /var/log/cpt-backup.log 2>&1
 EOF
 chmod 0644 /etc/cron.d/cpt-backup
@@ -133,15 +153,15 @@ cd /opt/cpt
 docker compose pull
 docker compose up -d
 
-# 12. healthcheck pós-boot — não falha o user-data, só registra
-echo "[bootstrap] aguardando publisher conectar (até 5min)..."
+# 12. healthcheck pos-boot -- nao falha o user-data, so registra
+echo "[bootstrap] aguardando publisher conectar (ate 5min)..."
 for i in $(seq 1 30); do
   if docker compose logs publisher 2>&1 | grep -qE '(CONNECTED|WS connected|WebSocket aberto)'; then
-    echo "[bootstrap] publisher conectado na WH (iteração $i)"
+    echo "[bootstrap] publisher conectado na WH (iteracao $i)"
     break
   fi
   sleep 10
 done
 
 touch /var/lib/cloud/instance/cpt-bootstrap.done
-echo "[bootstrap] $(date -u +%FT%TZ) concluído"
+echo "[bootstrap] $(date -u +%FT%TZ) concluido"

@@ -23,7 +23,13 @@ resource "aws_iam_user_policy" "ssm_read" {
           "ssm:GetParameters",
           "ssm:GetParametersByPath",
         ]
-        Resource = "arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${local.ssm_prefix}/*"
+        # GetParametersByPath consulta o path EXATO como resource (parameter/cpt/prod),
+        # GetParameter consulta cada parametro individual (parameter/cpt/prod/foo).
+        # Precisamos cobrir os dois casos.
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${local.ssm_prefix}",
+          "arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${local.ssm_prefix}/*",
+        ]
       },
       {
         Sid      = "WriteLastBackupAt"

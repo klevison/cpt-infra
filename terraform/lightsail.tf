@@ -5,14 +5,36 @@ resource "aws_lightsail_static_ip" "cpt" {
   name = "${var.instance_name}-ip"
 }
 
+# Importa public key gerada localmente (~/.ssh/cpt-lightsail.pub).
+# Lightsail `create-key-pair` (sem public key) gera uma chave com privada
+# nao recuperavel — se a privada local corromper, sem volta. Importando
+# nossa publica, controlamos a privada e podemos rotacionar quando precisar.
+resource "aws_lightsail_key_pair" "cpt" {
+  name       = var.ssh_key_name
+  public_key = file(pathexpand("~/.ssh/cpt-lightsail.pub"))
+}
+
 resource "aws_lightsail_instance" "cpt" {
   name              = var.instance_name
   availability_zone = "${var.aws_region}a"
   bundle_id         = var.lightsail_bundle_id
   blueprint_id      = var.lightsail_blueprint_id
-  key_pair_name     = var.ssh_key_name
+  key_pair_name     = aws_lightsail_key_pair.cpt.name
 
-  user_data = data.cloudinit_config.user_data.rendered
+  # Lightsail prepende seu proprio shell script ao user_data (configura
+  # TrustedUserCAKeys pro Browser SSH). Isso impede usar multipart MIME
+  # (cloudinit_config) -- cloud-init detecta como shell script unico e
+  # nao parseia o MIME. Solucao: user_data eh um shell script direto que
+  # cria /etc/cpt/aws_credentials no proprio bash (em vez de cloud-config
+  # write_files).
+  user_data = templatefile("${path.module}/user_data.sh", {
+    aws_region            = var.aws_region
+    ssm_prefix            = local.ssm_prefix
+    infra_repo_url        = var.infra_repo_url
+    infra_repo_ref        = var.infra_repo_ref
+    aws_access_key_id     = aws_iam_access_key.bootstrap.id
+    aws_secret_access_key = aws_iam_access_key.bootstrap.secret
+  })
 
   add_on {
     type          = "AutoSnapshot"
@@ -32,10 +54,11 @@ resource "aws_lightsail_instance" "cpt" {
     # (apenas com backup recente do pg_dump).
     ignore_changes = [user_data]
 
-    # Defesa contra `terraform destroy` acidental (typo, dedo gordo, agente
-    # confuso). Para destroy legitimo: editar essa linha para `false` num
-    # commit dedicado, depois rodar destroy. Atrito deliberado.
-    prevent_destroy = true
+    # TEMPORARIAMENTE desabilitado para permitir replace da instance via
+    # mudanca em key_pair_name (chave SSH antiga foi corrompida, recriacao
+    # com nova chave ed25519 importada). Restaurar para `true` em commit
+    # dedicado apos o apply OK.
+    prevent_destroy = false
   }
 }
 
@@ -72,41 +95,7 @@ resource "aws_lightsail_instance_public_ports" "cpt" {
   }
 }
 
-# Cloud-init em duas partes:
-# 1. cloud-config para gravar /etc/cpt/aws_credentials antes do script rodar.
-# 2. Script Bash que instala Docker, puxa SSM e sobe o compose.
-data "cloudinit_config" "user_data" {
-  gzip          = false
-  base64_encode = false
-
-  part {
-    filename     = "00-aws-credentials.yaml"
-    content_type = "text/cloud-config"
-    content = yamlencode({
-      write_files = [
-        {
-          path        = "/etc/cpt/aws_credentials"
-          owner       = "root:root"
-          permissions = "0600"
-          content     = <<-EOT
-            [default]
-            aws_access_key_id = ${aws_iam_access_key.bootstrap.id}
-            aws_secret_access_key = ${aws_iam_access_key.bootstrap.secret}
-            region = ${var.aws_region}
-          EOT
-        },
-      ]
-    })
-  }
-
-  part {
-    filename     = "10-bootstrap.sh"
-    content_type = "text/x-shellscript"
-    content = templatefile("${path.module}/user_data.sh", {
-      aws_region     = var.aws_region
-      ssm_prefix     = local.ssm_prefix
-      infra_repo_url = var.infra_repo_url
-      infra_repo_ref = var.infra_repo_ref
-    })
-  }
-}
+# NOTA: data "cloudinit_config" foi removido. Lightsail injeta seu proprio
+# shell script no user_data, e cloud-init nao consegue parsear multipart
+# MIME quando ha esse prefixo shell. Solucao: passar user_data.sh direto
+# como shell script unico (vide user_data acima em aws_lightsail_instance).
