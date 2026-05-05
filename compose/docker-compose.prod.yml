@@ -42,8 +42,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 45s
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
     logging:
       driver: json-file
       options:
@@ -67,8 +65,6 @@ services:
         condition: service_healthy
       phoenix:
         condition: service_started
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
     logging:
       driver: json-file
       options:
@@ -121,29 +117,16 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  watchtower:
-    # Pinar versao especifica — `latest` em containrrr/watchtower usa cliente
-    # Docker antigo (API 1.25) incompativel com daemons modernos (>= 1.40).
-    # 1.7.1 (Apr 2024) eh o ultimo release oficial e suporta APIs mais novas.
-    image: containrrr/watchtower:1.7.1
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /root/.docker/config.json:/config.json:ro
-    command:
-      - "--interval"
-      - "300"
-      - "--label-enable"
-      - "--cleanup"
-      - "--include-restarting"
-    environment:
-      WATCHTOWER_NOTIFICATIONS_LEVEL: "warn"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-
+# Watchtower removido: containrrr/watchtower esta abandonado desde 2023
+# (cliente Docker API 1.25 vs daemons modernos >= 1.40 = crash loop).
+# Forks ativos sao single-maintainer com risco de bus factor. Para MVP
+# solo, deploy manual via SSH eh mais previsivel:
+#
+#   ./scripts/ssh.sh "sudo docker compose -f /opt/cpt/docker-compose.yml pull && \
+#     sudo docker compose -f /opt/cpt/docker-compose.yml up -d"
+#
+# Quando MVP estabilizar + cpt.bet ativo, reavaliar GHA deploy via SSH
+# (pipeline declarativa, auditavel) em vez de Watchtower.
 volumes:
   pg_data:
   redis_data:

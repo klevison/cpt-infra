@@ -64,11 +64,10 @@ resource "aws_lightsail_instance" "cpt" {
     # (apenas com backup recente do pg_dump).
     ignore_changes = [user_data]
 
-    # TEMPORARIAMENTE desabilitado para permitir replace da instance via
-    # mudanca em key_pair_name (chave SSH antiga foi corrompida, recriacao
-    # com nova chave ed25519 importada). Restaurar para `true` em commit
-    # dedicado apos o apply OK.
-    prevent_destroy = false
+    # Defesa contra `terraform destroy` acidental (typo, dedo gordo, agente
+    # confuso). Para destroy legitimo: editar essa linha para `false` num
+    # commit dedicado, depois rodar destroy. Atrito deliberado.
+    prevent_destroy = true
   }
 }
 

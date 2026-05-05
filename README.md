@@ -17,9 +17,6 @@ Infraestrutura da stack `cpt_bet` (Phoenix LiveView + Publisher Python WS→Redi
 │        │                │             │           │             │
 │        └────────────────┴─────────────┴───────────┘             │
 │                       (bridge net)                              │
-│  ┌──────────────┐                                               │
-│  │  watchtower  │ ← polling 5min, pull GHCR (apenas phoenix +   │
-│  └──────────────┘   publisher; postgres/redis manuais)          │
 └─────────────────────────────────────────────────────────────────┘
                                                           │
                                                     cron 04:00 UTC
@@ -30,8 +27,13 @@ Infraestrutura da stack `cpt_bet` (Phoenix LiveView + Publisher Python WS→Redi
 > MVP IP-only (sem `cpt.bet` ainda): acesso direto via `http://<static_ip>/`. Caddy
 > + TLS Let's Encrypt voltam quando o domínio for registrado — vide
 > [`docs/caddy-reintro.md`](docs/caddy-reintro.md).
+>
+> **Sem auto-deploy.** Após `git push main` em `cpt/` ou `wh-publisher/`, build GHA
+> publica nova imagem em GHCR e o operador roda `docker compose pull && up -d` via
+> SSH (vide `docs/runbook.md`). Watchtower foi removido (projeto upstream
+> abandonado, incompatível com Docker daemon moderno).
 
-Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou [klevison/wh-publisher](https://github.com/klevison/wh-publisher) → GHA build → push GHCR → Watchtower detecta SHA novo → graceful recreate.
+Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou [klevison/wh-publisher](https://github.com/klevison/wh-publisher) → GHA build → push GHCR → operador roda `docker compose pull && up -d` via SSH no host (vide [`docs/runbook.md`](docs/runbook.md)).
 
 ## Estrutura
 

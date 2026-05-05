@@ -34,12 +34,30 @@ Limite de retenção: `json-file max-size: 10m, max-file: 5` por container (50 M
 ./scripts/ssh.sh "cd /opt/cpt && docker compose restart publisher"
 ```
 
-## Forçar deploy de imagem nova (Watchtower normalmente faz)
+## Deploy de imagem nova
 
-Watchtower faz polling a cada 5min. Para forçar agora:
+**Não há auto-deploy.** Watchtower foi removido (projeto upstream abandonado, cliente Docker API 1.25 incompatível com daemon moderno >= 1.40 — vide commit que removeu pra contexto). Pipeline atual:
+
+1. `git push main` em `klevison/cpt` ou `klevison/wh-publisher`
+2. GHA `build.yml` builda + publica em `ghcr.io/klevison/<repo>:latest` (~3-5 min)
+3. Operador roda na instância:
 
 ```bash
-./scripts/ssh.sh "cd /opt/cpt && docker compose pull phoenix && docker compose up -d phoenix"
+# Deploy de tudo que tem imagem nova
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose pull && sudo docker compose up -d"
+
+# OU deploy de service especifico (mais cirurgico)
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose pull phoenix && sudo docker compose up -d phoenix"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose pull publisher && sudo docker compose up -d publisher"
+```
+
+`docker compose pull` traz só layers diferentes (rápido). `up -d` re-cria container que mudou; outros ficam intactos. Phoenix tem `stop_grace_period: 60s` — restart leva ~60s respeitando `XGROUP DELCONSUMER` em `terminate/2`.
+
+Quando `infra/` mudar (ex: ajuste no `docker-compose.prod.yml`), também sincronizar o repo na instância antes do `up -d`:
+
+```bash
+./scripts/ssh.sh "sudo git -C /opt/cpt/infra fetch --depth=1 origin main && sudo git -C /opt/cpt/infra reset --hard origin/main"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose pull && sudo docker compose up -d"
 ```
 
 ## Verificar saúde dos Redis Streams
@@ -128,7 +146,7 @@ Lightsail medium_3_0 = 4 GB RAM. Distribuição esperada:
 - Postgres: ~256 MB (`shared_buffers` default 128 MB + work_mem)
 - Redis: até 1 GB (`maxmemory 1gb`)
 - Publisher Python: ~150 MB
-- Watchtower + SO: ~250 MB
+- SO base + Docker: ~200 MB
 - (Caddy retornará com ~20–40 MB extra quando reintroduzido com domínio)
 
 Margem fina — monitorar:

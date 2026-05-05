@@ -141,6 +141,44 @@ O `infra/` injeta via `/opt/cpt/.env` (puxado do SSM) e via `environment:` do Co
 | `INTERNAL_TOKEN` | (do SSM) | Compose env_file |
 | `FEATURED_PUBSUB_ENABLED` | `true` | Compose env_file ou default |
 
+### ⚠️ INTERNAL_TOKEN precisa ser USADO no código (não só env)
+
+Phoenix valida o header `X-Internal-Token` em `GET /api/featured-ids` e retorna
+**401 Unauthorized** sem ele. Isso significa: setar `INTERNAL_TOKEN` no Compose
+**não é suficiente** — o código Python precisa **ler a env var e enviar o
+header** em toda chamada pra API do Phoenix.
+
+Bug que ocorreu na versão inicial: `INTERNAL_TOKEN` era injetada via Compose
+(vinda do SSM) mas o código nunca a referenciava. Resultado: publisher ficava
+em loop de 401 → `featured_ids = set()` vazio → `SUBSCRIBED 0 jogos` →
+streams vazios → UI sem placares e incidents.
+
+Fix correto, em `decode_ws_lightsail.py`:
+
+```python
+# 1. ler a var no bloco de config (perto de PHOENIX_API_URL):
+INTERNAL_TOKEN = os.environ.get('INTERNAL_TOKEN', '').strip()
+
+# 2. usar em refresh_featured() (e qualquer outra chamada à API do Phoenix):
+def refresh_featured():
+    url = f"{PHOENIX_API_URL.rstrip('/')}{FEATURED_API_PATH}"
+    headers = {"X-Internal-Token": INTERNAL_TOKEN} if INTERNAL_TOKEN else {}
+    r = requests.get(url, headers=headers, timeout=FEATURED_FETCH_TIMEOUT)
+    ...
+```
+
+Validação rápida (pra confirmar fix):
+
+```bash
+ssh -i ~/.ssh/cpt-lightsail ubuntu@<ip> 'sudo docker compose exec -T publisher \
+  python3 -c "import os, requests; \
+  r=requests.get(\"http://phoenix:4000/api/featured-ids\", \
+                 headers={\"X-Internal-Token\": os.environ[\"INTERNAL_TOKEN\"]}, timeout=5); \
+  print(r.status_code, r.text[:200])"'
+```
+
+Esperado: `200 {"count": N, "ids": [...], ...}`.
+
 Vars que **não devem mais existir** no prod (remover defaults):
 `PROXY_HOST`, `PROXY_PORT`, `PROXY_USER`, `PROXY_PASS`.
 
