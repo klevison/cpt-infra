@@ -50,8 +50,21 @@ variable "instance_name" {
 }
 
 variable "ssh_key_name" {
-  description = "Nome do key pair Lightsail (criado fora do Terraform via aws lightsail create-key-pair)."
+  description = "Nome do key pair Lightsail (gerenciado por aws_lightsail_key_pair.cpt)."
   type        = string
+}
+
+variable "ssh_public_key" {
+  description = <<-EOT
+    Conteudo da public key SSH (ssh-ed25519 ... ou ssh-rsa ...) importada no
+    aws_lightsail_key_pair. Lightsail nao permite re-baixar privadas, entao
+    importamos a public local (geramos com ssh-keygen e mantemos a privada
+    em ~/.ssh/cpt-lightsail). NAO confidencial — public key fica em authorized_keys
+    da instancia. Default eh placeholder funcional para `terraform validate` no CI;
+    setar no terraform.tfvars (gitignored) para apply real.
+  EOT
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA placeholder"
 }
 
 variable "infra_repo_url" {

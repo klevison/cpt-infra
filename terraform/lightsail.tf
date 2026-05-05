@@ -5,13 +5,23 @@ resource "aws_lightsail_static_ip" "cpt" {
   name = "${var.instance_name}-ip"
 }
 
-# Importa public key gerada localmente (~/.ssh/cpt-lightsail.pub).
+# Importa public key SSH definida em var.ssh_public_key (terraform.tfvars).
 # Lightsail `create-key-pair` (sem public key) gera uma chave com privada
 # nao recuperavel — se a privada local corromper, sem volta. Importando
 # nossa publica, controlamos a privada e podemos rotacionar quando precisar.
 resource "aws_lightsail_key_pair" "cpt" {
   name       = var.ssh_key_name
-  public_key = file(pathexpand("~/.ssh/cpt-lightsail.pub"))
+  public_key = var.ssh_public_key
+
+  lifecycle {
+    # `public_key` no schema do provider eh ForceNew — qualquer diferenca
+    # (ate trailing newline de file() vs string em tfvars) recria o key_pair
+    # e cascateia pra recriar a instance. Como o valor real esta no state e
+    # a rotacao consciente eh feita via `terraform apply -replace=...`,
+    # ignoramos diffs aqui. Default `var.ssh_public_key` no variables.tf eh
+    # placeholder funcional para `terraform validate` no CI.
+    ignore_changes = [public_key]
+  }
 }
 
 resource "aws_lightsail_instance" "cpt" {
