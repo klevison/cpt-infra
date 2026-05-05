@@ -3,6 +3,8 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+tfplan
+terraform/tfplan
 crash.log
 crash.*.log
 
