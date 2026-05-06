@@ -20,4 +20,4 @@ if [ -z "$IP" ]; then
   exit 1
 fi
 
-exec ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "ubuntu@${IP}" "$@"
+exec ssh -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "ubuntu@${IP}" "$@"

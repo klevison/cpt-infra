@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.14.0"
+  # Pin no minor — `>=` aceitaria Terraform 2.x com breaking changes.
+  required_version = "~> 1.14"
 
   required_providers {
     aws = {

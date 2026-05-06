@@ -3,6 +3,13 @@
 
 resource "aws_lightsail_static_ip" "cpt" {
   name = "${var.instance_name}-ip"
+
+  lifecycle {
+    # Static IP eh referenciado por DNS Cloudflare apex (cptlive.com). Destroy
+    # acidental rasga A record + obriga propagar IP novo + obriga revalidar
+    # ACME do Caddy (LE rate-limit). Defesa em profundidade contra dedo gordo.
+    prevent_destroy = true
+  }
 }
 
 # Importa public key SSH definida em var.ssh_public_key (terraform.tfvars).

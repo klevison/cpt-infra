@@ -24,6 +24,14 @@ services:
     depends_on:
       phoenix:
         condition: service_healthy
+    # Healthcheck pelo admin API local do Caddy (porta 2019 interna, nunca exposta).
+    # Detecta crash de processo E falha de carregamento do Caddyfile.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging:
       driver: json-file
       options:
@@ -92,6 +100,9 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Default 10s pode interromper checkpoint final / pg_dump em curso pelo
+    # cron das 04:00 UTC. 30s cobre shutdown gracioso normal.
+    stop_grace_period: 30s
     environment:
       POSTGRES_USER: "cpt"
       POSTGRES_DB: "cpt"
@@ -113,6 +124,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Default 10s pode interromper AOF rewrite/fsync. 30s da margem pra
+    # SHUTDOWN gracioso terminar sem corromper appendonly.
+    stop_grace_period: 30s
     command:
       - "redis-server"
       - "--appendonly"

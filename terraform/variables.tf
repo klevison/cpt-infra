@@ -60,11 +60,16 @@ variable "ssh_public_key" {
     aws_lightsail_key_pair. Lightsail nao permite re-baixar privadas, entao
     importamos a public local (geramos com ssh-keygen e mantemos a privada
     em ~/.ssh/cpt-lightsail). NAO confidencial — public key fica em authorized_keys
-    da instancia. Default eh placeholder funcional para `terraform validate` no CI;
-    setar no terraform.tfvars (gitignored) para apply real.
+    da instancia. Sem default — `terraform plan` sem este valor falha cedo (e
+    o key_pair tem `ignore_changes = [public_key]`, entao um placeholder
+    aplicado uma vez ficaria preso ate recriar a instancia).
   EOT
   type        = string
-  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA placeholder"
+
+  validation {
+    condition     = length(var.ssh_public_key) > 0 && (startswith(var.ssh_public_key, "ssh-ed25519 ") || startswith(var.ssh_public_key, "ssh-rsa "))
+    error_message = "ssh_public_key deve comecar com 'ssh-ed25519 ' ou 'ssh-rsa '."
+  }
 }
 
 variable "infra_repo_url" {

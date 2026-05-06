@@ -11,6 +11,11 @@ resource "aws_s3_bucket" "backups" {
   force_destroy = false
 
   # Não destruir por terraform destroy — backups têm valor além do ciclo da instância.
+  # force_destroy=false sozinho falha se o bucket tiver objetos, mas ainda permite
+  # destroy em bucket vazio. prevent_destroy bloqueia mesmo assim — defesa em camada.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_versioning" "backups" {

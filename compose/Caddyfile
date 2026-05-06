@@ -9,8 +9,32 @@
 # WebSocket LiveView funciona com reverse_proxy direto (Caddy 2 detecta
 # Upgrade: websocket).
 
+# Redirect explicito de :80 -> :443. Caddy 2 ja faz auto_https, mas declarar
+# explicitamente deixa o intento auditavel pra quem ler o arquivo as 3am.
+http://{$DOMAIN} {
+    redir https://{$DOMAIN}{uri} permanent
+}
+
 {$DOMAIN} {
     encode gzip zstd
+
+    # Security headers. HSTS sem includeSubDomains de proposito: o DNS Cloudflare
+    # tem A record para `www.{$DOMAIN}` apontando pro mesmo IP, mas o Caddyfile
+    # so configura o apex — `https://www.{$DOMAIN}` nao tem cert, daria erro
+    # hard com includeSubDomains. Para habilitar (e eventualmente preload):
+    #   1) adicionar bloco `www.{$DOMAIN} { redir https://{$DOMAIN}{uri} }` (ou
+    #      servir o site no www tambem),
+    #   2) confirmar TLS funcional em www via curl,
+    #   3) elevar max-age para 63072000 + includeSubDomains + preload,
+    #   4) submeter em hstspreload.org.
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        # Remove header default que vaza a versao do Caddy.
+        -Server
+    }
 
     reverse_proxy phoenix:4000 {
         header_up X-Forwarded-Proto {scheme}

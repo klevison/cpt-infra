@@ -20,6 +20,7 @@ concurrency:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: terraform
@@ -42,6 +43,7 @@ jobs:
 
   compose:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -54,16 +56,19 @@ jobs:
 
   shellcheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ludeeus/action-shellcheck@master
+      # Pin por SHA: tag 2.0.0 (maintainer pode reapontar tag flutuante).
+      - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
         with:
           severity: error
           scandir: scripts
 
   secrets-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:

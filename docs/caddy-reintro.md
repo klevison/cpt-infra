@@ -142,7 +142,7 @@ ln -sf /opt/cpt/infra/compose/docker-compose.prod.yml /opt/cpt/docker-compose.ym
 cp /opt/cpt/infra/compose/Caddyfile /opt/cpt/Caddyfile
 ```
 
-## Passo 5 — `terraform apply`
+## Passo 6 — `terraform apply`
 
 ```bash
 cd infra/terraform
@@ -159,7 +159,7 @@ O apply vai:
 - Não toca instância (mas user-data novo já está disponível para próximo recreate)
 - Não cria zone Route 53 (CF DNS gerencia A records via painel CF, fora do Terraform)
 
-## Passo 6 — Aplicar mudanças no host
+## Passo 7 — Aplicar mudanças no host
 
 ```bash
 ./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d"
