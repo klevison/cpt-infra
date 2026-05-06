@@ -73,12 +73,17 @@ resource "aws_ssm_parameter" "ghcr_token" {
 
 # Configs gerenciados (Terraform reconcilia se mudar)
 
-# Em bootstrap sem dominio (var.enable_route53 = false ou var.domain = ""),
-# o IP estatico do Lightsail e usado como PHX_HOST. Phoenix gera URLs com IP
-# (http://<ip>/) em vez de https://cpt.bet/. Quando dominio for registrado:
-# `terraform apply -var domain=cpt.bet -var enable_route53=true` reconcilia.
+# Em bootstrap sem dominio (var.domain = ""), o IP estatico do Lightsail
+# eh usado como PHX_HOST e Phoenix gera URLs http://<ip>/. Quando dominio
+# for setado (independente de quem hospeda DNS — Route 53 OU Cloudflare/etc),
+# Phoenix gera URLs https://<dominio>/ e Caddy faz TLS automatico ACME.
+#
+# var.enable_route53 controla apenas se o Terraform GERENCIA a hosted zone
+# Route 53 (zone + A record). Quando false e dominio setado, esperamos que
+# DNS esteja apontando pra static IP via outro provider (Cloudflare/etc).
 locals {
-  effective_host = var.domain != "" && var.enable_route53 ? var.domain : aws_lightsail_static_ip.cpt.ip_address
+  has_domain     = var.domain != ""
+  effective_host = local.has_domain ? var.domain : aws_lightsail_static_ip.cpt.ip_address
 }
 
 resource "aws_ssm_parameter" "phx_host" {
@@ -88,21 +93,31 @@ resource "aws_ssm_parameter" "phx_host" {
   tier  = "Standard"
 }
 
-# Em IP-only (enable_route53 = false), Phoenix expoe :4000 internamente e
-# o Compose mapeia host :80 -> container :4000 (sem Caddy). Phoenix gera
-# URLs com scheme http e porta 80. Quando enable_route53 = true, Caddy
-# volta a frente (vide docs/caddy-reintro.md) e Phoenix usa https/443.
+# Espelha phx_host como DOMAIN — usado pelo Caddyfile via {$DOMAIN} para
+# TLS automatico Let's Encrypt. Caddy precisa do dominio em compile-time
+# da config; phx_host servidor mesmo proposito mas em namespace Phoenix.
+resource "aws_ssm_parameter" "domain" {
+  name  = "${local.ssm_prefix}/domain"
+  type  = "SecureString"
+  value = local.effective_host
+  tier  = "Standard"
+}
+
+# Sem dominio: Phoenix expoe :4000 -> compose mapeia :80 do host (sem Caddy).
+# URLs geradas: http://<ip>/.
+# Com dominio: Caddy a frente (vide docs/caddy-reintro.md), TLS automatico.
+# URLs geradas: https://<dominio>/.
 resource "aws_ssm_parameter" "phx_scheme" {
   name  = "${local.ssm_prefix}/phx_scheme"
   type  = "SecureString"
-  value = var.enable_route53 ? "https" : "http"
+  value = local.has_domain ? "https" : "http"
   tier  = "Standard"
 }
 
 resource "aws_ssm_parameter" "phx_port_url" {
   name  = "${local.ssm_prefix}/phx_port_url"
   type  = "SecureString"
-  value = var.enable_route53 ? "443" : "80"
+  value = local.has_domain ? "443" : "80"
   tier  = "Standard"
 }
 

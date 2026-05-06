@@ -1,0 +1,25 @@
+# Caddy — TLS automatico Let's Encrypt + reverse proxy -> phoenix:4000.
+# Pre-requisito: A record do {$DOMAIN} ja apontando pro static IP ANTES do
+# primeiro start (LE rate-limita 5 falhas/hora por host).
+#
+# Phoenix tem Plug.RewriteOn em prod via force_ssl: rewrite_on:
+# [:x_forwarded_proto] — header_up X-Forwarded-Proto eh o que evita o
+# loop de redirect (Phoenix vê HTTPS via header e nao tenta forçar de novo).
+#
+# WebSocket LiveView funciona com reverse_proxy direto (Caddy 2 detecta
+# Upgrade: websocket).
+
+{$DOMAIN} {
+    encode gzip zstd
+
+    reverse_proxy phoenix:4000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For   {remote_host}
+        header_up Host              {host}
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

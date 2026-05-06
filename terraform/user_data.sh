@@ -130,8 +130,9 @@ fetch_ssm() {
 }
 fetch_ssm
 
-# 8. symlink do compose YAML
+# 8. symlinks compose + Caddyfile
 ln -sf /opt/cpt/infra/compose/docker-compose.prod.yml /opt/cpt/docker-compose.yml
+cp /opt/cpt/infra/compose/Caddyfile /opt/cpt/Caddyfile
 
 # 9. docker login ghcr.io (le GHCR_USER e GHCR_TOKEN do .env)
 set +x  # nao logar token

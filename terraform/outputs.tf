@@ -40,7 +40,12 @@ output "domain_a_record" {
   value       = var.enable_route53 ? aws_route53_record.apex[0].fqdn : ""
 }
 
+output "route53_nameservers" {
+  description = "4 NS da hosted zone Route 53. Configurar como nameservers no painel do registrar externo (Cloudflare/Porkbun/etc) para delegar a zona."
+  value       = var.enable_route53 ? aws_route53_zone.primary[0].name_servers : []
+}
+
 output "phoenix_url" {
-  description = "URL para acessar o Phoenix (http://<ip>/ enquanto sem dominio; https://<dominio>/ quando enable_route53 = true)."
-  value       = var.enable_route53 ? "https://${var.domain}/" : "http://${aws_lightsail_static_ip.cpt.ip_address}/"
+  description = "URL para acessar o Phoenix (http://<ip>/ enquanto sem dominio; https://<dominio>/ quando var.domain estiver setado)."
+  value       = var.domain != "" ? "https://${var.domain}/" : "http://${aws_lightsail_static_ip.cpt.ip_address}/"
 }
