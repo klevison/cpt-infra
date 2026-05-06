@@ -1,22 +1,32 @@
-# Reintroduzir Caddy + TLS quando `cpt.bet` for registrado
+# Reintroduzir Caddy + TLS — APLICADO 2026-04-30
 
-Playbook para reverter o adendum 2026-04-30 (que removeu Caddy do MVP IP-only)
-quando o domínio `cpt.bet` estiver registrado em Route 53. Trabalho mecânico, ~15
+> **Status atual:** APLICADO. Caddy está em produção fazendo TLS automático Let's Encrypt
+> para `cptlive.com`. O domínio foi registrado via **Cloudflare Registrar** (não Route 53
+> — vide [`deploy.md`](deploy.md) passo 2 para a história), DNS hospedado em **Cloudflare**
+> com `enable_route53=false`.
+>
+> Este documento permanece como **playbook histórico de reintrodução** — útil se o Caddy
+> precisar ser removido novamente (ex: simplificação extrema do MVP) e depois trazido
+> de volta. Os passos abaixo refletem o estado vigente do repo (Caddy presente,
+> `cpt/config/prod.exs` com `force_ssl` ativo, `compose/.env.example` com `DOMAIN=cptlive.com`).
+
+Playbook para reverter um adendum hipotético que remova Caddy. Trabalho mecânico, ~15
 min, dividido em 4 arquivos do `infra/` + 1 `terraform apply`.
 
 ## Pré-requisitos
 
-1. `cpt.bet` registrado em Route 53 da mesma conta AWS (~$26 USD via console
-   AWS — vide [`deploy.md`](deploy.md) seção "Registrar `cpt.bet` em Route 53").
-2. Hosted zone `cpt.bet` existe (criada automaticamente após registro):
+1. Domínio registrado e DNS apontando pra static IP do Lightsail. Em produção atual:
+   `cptlive.com` via Cloudflare (`A @` e `A www` em modo "DNS only", sem proxy laranja).
+2. Verificar:
    ```bash
-   aws route53 list-hosted-zones --query 'HostedZones[?Name==`cpt.bet.`]'
+   dig +short A cptlive.com   # deve retornar o static IP
    ```
-3. `terraform.tfvars` aceita os novos valores (vide passo 4 abaixo).
+3. `terraform.tfvars` com `domain = "cptlive.com"` e `enable_route53 = false`.
 
 ## Passo 1 — Recriar `compose/Caddyfile`
 
-Conteúdo (snapshot do que estava antes da remoção, ajustado para apex `cpt.bet`):
+Conteúdo atual em produção (já presente no repo — este snapshot serve de referência
+caso o arquivo precise ser recriado):
 
 ```caddy
 # Caddy — TLS automático Let's Encrypt + reverse proxy → phoenix:4000.
@@ -85,12 +95,12 @@ E na seção `volumes:` no fim do arquivo, re-adicionar:
 
 ## Passo 3 — Restaurar `DOMAIN` em `compose/.env.example`
 
-Adicionar uma linha (a partir de `cpt.bet`):
+Adicionar uma linha (já presente no estado atual):
 ```
-DOMAIN=cpt.bet
+DOMAIN=cptlive.com
 ```
 
-E adicionar `aws_ssm_parameter "domain"` de volta em `terraform/ssm.tf`:
+E confirmar `aws_ssm_parameter "domain"` em `terraform/ssm.tf` (já presente):
 ```hcl
 resource "aws_ssm_parameter" "domain" {
   name  = "${local.ssm_prefix}/domain"
@@ -103,8 +113,8 @@ resource "aws_ssm_parameter" "domain" {
 ## Passo 4 — Re-habilitar `force_ssl` em `cpt/config/prod.exs`
 
 Durante MVP IP-only o `force_ssl` foi removido (Phoenix em compile-time
-redireciona HTTP -> HTTPS sem ter TLS pra qual ir). Restaurar o bloco
-comentado em `cpt/config/prod.exs`:
+redireciona HTTP -> HTTPS sem ter TLS pra qual ir). Em produção atual o bloco
+está ativo em `cpt/config/prod.exs`:
 
 ```elixir
 config :cpt, CptWeb.Endpoint,
@@ -137,18 +147,17 @@ cp /opt/cpt/infra/compose/Caddyfile /opt/cpt/Caddyfile
 ```bash
 cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars   # se ainda não existe
-# Editar terraform.tfvars:
-#   enable_route53    = true
-#   domain            = "cpt.bet"
-#   route53_zone_name = "cpt.bet"
+# Editar terraform.tfvars (estado atual):
+#   enable_route53 = false              # Cloudflare Registrar exige CF DNS
+#   domain         = "cptlive.com"
 terraform plan -out=tfplan
 terraform apply tfplan
 ```
 
 O apply vai:
-- Criar A record `cpt.bet → <static_ip>` em Route 53
-- Atualizar SSM `phx_host` = `cpt.bet`, `phx_scheme` = `https`, `phx_port_url` = `443`, `domain` = `cpt.bet`
+- Atualizar SSM `phx_host` = `cptlive.com`, `phx_scheme` = `https`, `phx_port_url` = `443`, `domain` = `cptlive.com`
 - Não toca instância (mas user-data novo já está disponível para próximo recreate)
+- Não cria zone Route 53 (CF DNS gerencia A records via painel CF, fora do Terraform)
 
 ## Passo 6 — Aplicar mudanças no host
 
@@ -164,38 +173,38 @@ ACME no primeiro request HTTP (60–90s).
 
 1. **DNS resolve:**
    ```bash
-   dig cpt.bet A +short   # deve retornar o static IP
+   dig cptlive.com A +short   # deve retornar o static IP
    ```
-2. **HTTP redirect → HTTPS** (Caddy faz por default):
+2. **HTTP redirect → HTTPS** (Phoenix `force_ssl` injeta 308; Caddy é HTTP→HTTPS-aware):
    ```bash
-   curl -I http://cpt.bet/   # 308 → https://cpt.bet/
+   curl -I http://cptlive.com/   # 308 → https://cptlive.com/
    ```
 3. **TLS funcional, cert Let's Encrypt:**
    ```bash
-   curl -I https://cpt.bet/live-events   # 200, sem warning
-   openssl s_client -connect cpt.bet:443 < /dev/null 2>/dev/null \
+   curl -I https://cptlive.com/live-events   # 200, sem warning
+   openssl s_client -connect cptlive.com:443 < /dev/null 2>/dev/null \
      | openssl x509 -noout -issuer
    # issuer=C = US, O = Let's Encrypt, CN = R3 (ou variante)
    ```
 4. **WebSocket LiveView:**
-   - Browser DevTools → `wss://cpt.bet/live/websocket` conecta sem erro
+   - Browser DevTools → `wss://cptlive.com/live/websocket` conecta sem erro
 5. **Containers:**
    ```bash
    ./scripts/ssh.sh "cd /opt/cpt && docker compose ps"
-   # Deve listar 6 services: caddy, phoenix, publisher, postgres, redis, watchtower
+   # Deve listar 5 services: caddy, phoenix, publisher, postgres, redis
    ```
 
 ## Rollback (se algo der errado)
 
 Reverter as 4 mudanças de arquivo via `git revert <sha-do-commit>` e:
 ```bash
-terraform apply -var enable_route53=false
 ./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d"
 ```
-Volta pra MVP IP-only sem perder dados.
+Volta pra MVP IP-only sem perder dados (Phoenix passa a expor `host:80` direto).
 
 ## Custos pós-reintro
 
-- Route 53 hosted zone: $0.50/mês
+- Cloudflare Registrar `cptlive.com`: ~$10/ano (~$0.83/mês)
+- Cloudflare DNS: gratuito (free tier)
 - (Caddy não cobra extra — usa porta 80/443 já abertas no Lightsail)
 - ACME Let's Encrypt: gratuito

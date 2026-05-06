@@ -5,28 +5,36 @@ Infraestrutura da stack `cpt_bet` (Phoenix LiveView + Publisher Python WS→Redi
 ## Topologia
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  AWS Lightsail (eu-west-2, medium_3_0 — 2 vCPU / 4 GB / 80 GB)  │
-│                                                                 │
-│  ┌─────────────┐  ┌───────────┐  ┌──────────┐  ┌─────┐          │
-│  │ phoenix     │  │ publisher │  │ postgres │  │redis│          │
-│  │ host :80 ←  │  │           │  │          │  │     │          │
-│  │ container   │  │           │  │          │  │     │          │
-│  │ :4000       │  │           │  │          │  │     │          │
-│  └─────┬───────┘  └─────┬─────┘  └────┬─────┘  └──┬──┘          │
-│        │                │             │           │             │
-│        └────────────────┴─────────────┴───────────┘             │
-│                       (bridge net)                              │
-└─────────────────────────────────────────────────────────────────┘
+                ┌───── DNS Cloudflare (free) ─────┐
+cptlive.com ───►│  A @  → 35.178.28.41 (DNS only) │
+                │  A www → 35.178.28.41 (DNS only)│
+                └─────────────────────────────────┘
+                              │
+        ┌─────── AWS Lightsail (eu-west-2, medium_3_0) ─────────┐
+        │                                                       │
+        │  :80/:443 → ┌────────┐                                │
+        │             │ caddy  │  TLS auto Let's Encrypt        │
+        │             └───┬────┘  reverse_proxy → phoenix:4000  │
+        │                 │                                     │
+        │  ┌──────────────┴┐  ┌───────────┐  ┌──────────┐  ┌──┐ │
+        │  │   phoenix     │  │ publisher │  │ postgres │  │rd│ │
+        │  │ :4000 (force_ │  │           │  │          │  │  │ │
+        │  │  ssl, X-Fwd-  │  │           │  │          │  │  │ │
+        │  │   Proto)      │  │           │  │          │  │  │ │
+        │  └────┬──────────┘  └─────┬─────┘  └────┬─────┘  └┬─┘ │
+        │       │                   │             │          │  │
+        │       └───────────────────┴─────────────┴──────────┘  │
+        │                       (bridge net)                    │
+        └───────────────────────────────────────────────────────┘
                                                           │
                                                     cron 04:00 UTC
                                                           │
                                           pg_dump → S3 (Glacier IR 30d)
 ```
 
-> MVP IP-only (sem `cpt.bet` ainda): acesso direto via `http://<static_ip>/`. Caddy
-> + TLS Let's Encrypt voltam quando o domínio for registrado — vide
-> [`docs/caddy-reintro.md`](docs/caddy-reintro.md).
+> **Produção:** [`https://cptlive.com/`](https://cptlive.com/) (Let's Encrypt cert, HTTP→HTTPS 308 redirect via Caddy + Phoenix `force_ssl`).
+>
+> **DNS:** Cloudflare Registrar + Cloudflare DNS (conta free do CF exige uso do CF DNS, não permite custom NS — Route 53 não foi adotado). Dois A records `@` e `www` apontam pro static IP `35.178.28.41`, ambos em modo "DNS only" (proxy Cloudflare desativado pra não interferir no ACME).
 >
 > **Sem auto-deploy.** Após `git push main` em `cpt/` ou `wh-publisher/`, build GHA
 > publica nova imagem em GHCR e o operador roda `docker compose pull && up -d` via
@@ -40,7 +48,7 @@ Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou 
 | Diretório | Conteúdo |
 |---|---|
 | `terraform/` | Provisionamento AWS (Lightsail, IAM, SSM, S3, Route 53) |
-| `compose/` | `docker-compose.prod.yml`, `.env.example` (Caddyfile removido — vide `docs/caddy-reintro.md`) |
+| `compose/` | `docker-compose.prod.yml`, `Caddyfile`, `.env.example` |
 | `scripts/` | `backup.sh`, `restore.sh`, `refresh-env.sh`, `bootstrap-secrets.sh`, `ssh.sh` |
 | `docs/` | `deploy.md` (provisionar), `runbook.md` (operar), `secrets.md` (rotacionar) |
 | `docs/handoff/` | Instruções standalone para os repos `cpt/` e `wh-publisher/` |
@@ -48,7 +56,7 @@ Pipeline: `git push main` em [klevison/cpt](https://github.com/klevison/cpt) ou 
 
 ## Custo mensal
 
-~$24.50 USD em IP-only: Lightsail medium_3_0 $24 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$25 total) + custo único de registro do domínio.
+~$25.30 USD: Lightsail medium_3_0 $24 + S3 backups $0.50 + Cloudflare Registrar `cptlive.com` ~$0.83 (~$10/ano amortizado) + IAM/SSM/KMS/Cloudflare DNS $0. Cloudflare absorve DNS/registry sem cobrança adicional. Sem Route 53 (CF Registrar exige CF DNS na conta free).
 
 ## Como começar
 

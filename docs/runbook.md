@@ -17,7 +17,7 @@ Slash command: `/cpt-ssh "comando"`.
 ```bash
 ./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f phoenix"
 ./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f publisher"
-./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f watchtower"
+./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f caddy"
 ```
 
 Slash command: `/cpt-logs <service>`.
@@ -146,8 +146,8 @@ Lightsail medium_3_0 = 4 GB RAM. Distribuição esperada:
 - Postgres: ~256 MB (`shared_buffers` default 128 MB + work_mem)
 - Redis: até 1 GB (`maxmemory 1gb`)
 - Publisher Python: ~150 MB
+- Caddy: ~20–40 MB (TLS termination + reverse proxy)
 - SO base + Docker: ~200 MB
-- (Caddy retornará com ~20–40 MB extra quando reintroduzido com domínio)
 
 Margem fina — monitorar:
 ```bash

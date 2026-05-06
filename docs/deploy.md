@@ -25,14 +25,32 @@ aws sts get-caller-identity --profile cpt-admin
 export AWS_PROFILE=cpt-admin
 ```
 
-## 2. Registrar `cpt.bet` em Route 53
+## 2. Registrar domínio (Cloudflare Registrar)
 
-Pela própria AWS Route 53 (~$26 USD). Após o registro, a hosted zone é criada automaticamente.
+`cptlive.com` foi registrado via Cloudflare Registrar (~$10/ano). **Tentou-se Route 53
+primeiro mas falhou:** AWS Route 53 Domains exige cobrança em USD flat e a conta AWS
+em uso (Pessoa Física BR) só aceita BRL — registros em USD são rejeitados na hora.
 
-Verificar:
+Cloudflare Registrar exige usar o **Cloudflare DNS** na conta free (não permite NS
+custom apontando pra Route 53). Por isso `enable_route53=false` em `terraform.tfvars`
+e o A record é mantido manualmente no painel CF.
+
+Configuração CF DNS (modo "DNS only", sem proxy laranja — proxy interferiria com ACME
+do Caddy e quebraria WebSocket LiveView):
+
+| Type | Name | Content                | Proxy    |
+|------|------|------------------------|----------|
+| A    | @    | (output static_ip)     | DNS only |
+| A    | www  | (mesmo static_ip)      | DNS only |
+
+Verificar propagação:
 ```bash
-aws route53 list-hosted-zones --query 'HostedZones[?Name==`cpt.bet.`]'
+dig +short A cptlive.com
+dig +short A www.cptlive.com
 ```
+
+Se `www.cptlive.com` retornar IPs `172.67.*` ou `104.21.*`, o proxy CF está ativo —
+desligar a nuvem laranja no painel.
 
 ## 3. Criar key pair Lightsail (uma vez)
 
@@ -121,13 +139,17 @@ Espere a linha `[bootstrap] concluído`.
 ## 10. Verificar
 
 ```bash
-# Acesso direto (MVP IP-only — sem domínio, sem TLS)
-IP=$(terraform output -raw instance_public_ip)
-curl -I "http://${IP}/live-events"
+# DNS resolve
+dig +short A cptlive.com
 
-# Quando registrar cpt.bet e ativar enable_route53=true:
-#   dig cpt.bet A +short
-#   curl -I https://cpt.bet/live-events   # ver docs/caddy-reintro.md
+# HTTP -> HTTPS (Caddy + Phoenix force_ssl injetam 308)
+curl -I http://cptlive.com/
+
+# TLS Let's Encrypt + LiveView
+curl -I https://cptlive.com/live-events
+openssl s_client -connect cptlive.com:443 < /dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer
+# issuer=C=US, O=Let's Encrypt, CN=...
 
 # Publisher conectado na WH
 ../scripts/ssh.sh "cd /opt/cpt && docker compose logs publisher --tail=50 | grep -E '(CONNECTED|WS connected)'"
@@ -154,4 +176,4 @@ Depois `terraform apply`.
 
 ## Custo mensal esperado
 
-IP-only (sem dominio): ~$24.50 USD. Lightsail medium_3_0 $24 + S3 backups $0.50 + IAM/SSM/KMS $0. Quando registrar `cpt.bet`: +$0.50/mês de Route 53 zone (~$25 total) + custo único de registro do domínio.
+~$25.30 USD: Lightsail medium_3_0 $24 + S3 backups $0.50 + Cloudflare Registrar `cptlive.com` ~$0.83 (~$10/ano amortizado) + IAM/SSM/KMS/Cloudflare DNS $0. Sem Route 53 (CF Registrar exige CF DNS na conta free).

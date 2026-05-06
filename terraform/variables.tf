@@ -92,13 +92,13 @@ variable "ghcr_token" {
 }
 
 variable "cpt_image_tag" {
-  description = "Tag da imagem Phoenix puxada pelo Watchtower."
+  description = "Tag da imagem Phoenix em GHCR. Deploy manual via SSH apos build GHA."
   type        = string
   default     = "latest"
 }
 
 variable "publisher_image_tag" {
-  description = "Tag da imagem Publisher puxada pelo Watchtower."
+  description = "Tag da imagem Publisher em GHCR. Deploy manual via SSH apos build GHA."
   type        = string
   default     = "latest"
 }

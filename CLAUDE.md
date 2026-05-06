@@ -11,11 +11,11 @@ Este arquivo é instrução durável para qualquer instância do Claude Code que
 ## Contexto da stack (resumo)
 
 - 1 host AWS Lightsail London (`eu-west-2`, plano `medium_3_0`, $24/mês).
-- 4 containers num único `docker-compose.prod.yml`: phoenix, publisher, postgres, redis. Phoenix expõe `host:80 → container:4000` direto, sem reverse proxy à frente. Sem Watchtower — deploy manual via SSH após builds GHA (vide `docs/runbook.md`).
+- 5 containers num único `docker-compose.prod.yml`: caddy, phoenix, publisher, postgres, redis. Caddy expõe `host:80/443` e faz reverse proxy → `phoenix:4000` (interno via `expose`). TLS automático Let's Encrypt para `cptlive.com`. Sem Watchtower — deploy manual via SSH após builds GHA (vide `docs/runbook.md`).
 - Phoenix consome 5 Redis Streams via `XREADGROUP` em consumer groups dedicados (`cpt_phoenix_soccer*`).
 - Publisher Python lê WS Diffusion da William Hill, publica em 8 streams + 2 pub/sub channels.
 - Postgres é fonte de verdade. Backup `pg_dump` diário 04:00 UTC → S3 com lifecycle Glacier IR 30d.
-- **MVP IP-only:** sem domínio. Acesso por `http://<static_ip>/`. Quando `cpt.bet` for registrado, Caddy volta com TLS automático — vide `docs/caddy-reintro.md`.
+- **Produção em `https://cptlive.com/`** (Cloudflare Registrar + Cloudflare DNS, Let's Encrypt cert). Phoenix com `force_ssl` ativo confia em `X-Forwarded-Proto` injetado pelo Caddy. `docs/caddy-reintro.md` permanece como playbook de rollback inverso (caso Caddy precise ser removido novamente).
 
 ## Constraints duras (gotchas que matam silenciosamente)
 

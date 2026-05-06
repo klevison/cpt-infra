@@ -143,8 +143,8 @@ services:
 #   ./scripts/ssh.sh "sudo docker compose -f /opt/cpt/docker-compose.yml pull && \
 #     sudo docker compose -f /opt/cpt/docker-compose.yml up -d"
 #
-# Quando MVP estabilizar + cpt.bet ativo, reavaliar GHA deploy via SSH
-# (pipeline declarativa, auditavel) em vez de Watchtower.
+# Proximo passo (post-MVP): GHA deploy via SSH (pipeline declarativa, auditavel)
+# em vez de manter deploy manual.
 volumes:
   pg_data:
   redis_data:

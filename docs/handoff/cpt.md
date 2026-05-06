@@ -5,11 +5,12 @@ Documento auto-contido para alguém (humano ou Claude) trabalhando no repo
 
 ## Contexto
 
-A stack `cpt_bet` vai rodar em um único host AWS Lightsail London. O repo `cpt/`
+A stack `cpt_bet` roda em um único host AWS Lightsail London (cptlive.com). O repo `cpt/`
 (Phoenix LiveView + Elixir) precisa publicar uma imagem Docker em
-`ghcr.io/klevison/cpt:latest` a cada push em `main`. Watchtower no host puxa a
-imagem nova a cada 5min e re-cria o container Phoenix com graceful shutdown
-(`stop_grace_period: 60s`, configurado pelo `infra/`).
+`ghcr.io/klevison/cpt:latest` a cada push em `main`. **Não há auto-deploy** (Watchtower
+foi removido por incompatibilidade com Docker daemon moderno). Após o build, o operador
+roda `docker compose pull && up -d` manualmente via SSH; o graceful shutdown
+(`stop_grace_period: 60s`, configurado pelo `infra/`) garante `XGROUP DELCONSUMER` no Redis.
 
 ## O que criar
 
@@ -261,18 +262,19 @@ Já documentadas em `config/runtime.exs`. O `infra/` injeta via `/opt/cpt/.env` 
 | `DATABASE_URL` | `/cpt/prod/database_url` | `ecto://cpt:...@postgres:5432/cpt` |
 | `SECRET_KEY_BASE` | `/cpt/prod/secret_key_base` | 64 chars |
 | `INTERNAL_TOKEN` | `/cpt/prod/internal_token` | usado em `X-Internal-Token` (Publisher → Phoenix) |
-| `PHX_HOST` | `/cpt/prod/phx_host` | domínio ou IP estático (sem domínio: IP do Lightsail) |
-| `PHX_SCHEME` | `/cpt/prod/phx_scheme` | `http` em IP-only, `https` quando `enable_route53=true` |
-| `PHX_PORT_URL` | `/cpt/prod/phx_port_url` | `80` em IP-only, `443` quando `enable_route53=true` |
+| `PHX_HOST` | `/cpt/prod/phx_host` | `cptlive.com` em produção (fallback: IP estático Lightsail) |
+| `PHX_SCHEME` | `/cpt/prod/phx_scheme` | `https` em produção (Caddy faz TLS), `http` em fallback IP-only |
+| `PHX_PORT_URL` | `/cpt/prod/phx_port_url` | `443` em produção, `80` em fallback IP-only |
 | `REDIS_URL` | `/cpt/prod/redis_url` | `redis://redis:6379/0` |
 | `PHX_SERVER` | `true` (Compose) | Phoenix listen ativo |
 | `MIX_ENV` | `prod` (Compose) | |
 | `PORT` | `4000` (Compose) | |
 
 > `runtime.exs` lê `PHX_SCHEME`/`PHX_PORT_URL` em `Endpoint.url` para que Phoenix
-> gere links coerentes com a porta exposta externamente (no MVP IP-only:
-> `http`/`80`; com domínio + Caddy: `https`/`443`). Defaults `https`/`443`
-> preservam comportamento de prod quando as envs não são setadas.
+> gere links coerentes com a porta exposta externamente (produção atual:
+> `https`/`443` via `cptlive.com` + Caddy). `prod.exs` ativa `force_ssl` com
+> `rewrite_on: [:x_forwarded_proto]` para confiar no header injetado pelo Caddy
+> e evitar loop de redirect.
 
 ## Constraints de runtime
 

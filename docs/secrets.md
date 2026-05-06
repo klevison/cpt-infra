@@ -12,7 +12,7 @@ KMS `alias/aws/ssm`). A instância acessa via **IAM user dedicado**
 | `/cpt/prod/internal_token` | random_password TF (length 48) | sim | Phoenix + Publisher (auth) |
 | `/cpt/prod/postgres_password` | random_password TF (length 32) | requer ALTER USER | Postgres + DATABASE_URL |
 | `/cpt/prod/database_url` | derivado postgres_password | derivado | Phoenix |
-| `/cpt/prod/ghcr_token` | var.ghcr_token (terraform.tfvars) | sim | docker login + Watchtower |
+| `/cpt/prod/ghcr_token` | var.ghcr_token (terraform.tfvars) | sim | docker login no boot + deploys manuais |
 | `/cpt/prod/last_backup_at` | escrito pelo backup.sh | n/a (status) | observabilidade |
 
 ## Listar parâmetros
