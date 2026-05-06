@@ -18,8 +18,9 @@ Executar em paralelo (mesma mensagem com múltiplos Bash) e formatar como tabela
 
 2. **Containers** (ps + logs muito curtos para detectar crash loop):
    ```bash
-   ./scripts/ssh.sh "cd /opt/cpt && docker compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.State}}'"
+   ./scripts/ssh.sh "cd /opt/cpt && sudo docker compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.State}}'"
    ```
+   `sudo` obrigatório — usuário `ubuntu` não está no grupo docker.
 
 3. **Último backup**:
    ```bash

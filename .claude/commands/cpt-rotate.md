@@ -36,7 +36,7 @@ Wrapper guiado para rotação de secrets. Aceita:
 
    Se sim:
    ```bash
-   ./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d <SERVIÇOS>"
+   ./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d <SERVIÇOS>"
    ```
 
 7. Verificar saúde com `/cpt-status`.

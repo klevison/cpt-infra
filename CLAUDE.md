@@ -33,6 +33,42 @@ Este arquivo é instrução durável para qualquer instância do Claude Code que
 - **NUNCA** commitar: `terraform.tfvars` (gitignored), `.env` real (montado na instância via SSM), chaves SSH `*.pem`.
 - Acesso da instância ao SSM: IAM user `cpt-instance-bootstrap` com policy mínima (`ssm:GetParameter*` + `kms:Decrypt`). Access key gravada em `/etc/cpt/aws_credentials` no boot via cloud-init.
 
+## Acesso à instância (gotchas operacionais)
+
+Estas convenções são fáceis de descobrir errado. Use-as cegamente.
+
+### SSH
+
+- Wrapper canônico: `./scripts/ssh.sh '<comando>'` — passa o comando como **string única** ao shell remoto. Para SQL com aspas simples internas, escapar `'GOAL'` como `'"'"'GOAL'"'"'`.
+- Chave: o wrapper procura em ordem `$CPT_SSH_KEY` → `~/.ssh/cpt-lightsail.pem` → `~/.ssh/cpt-lightsail`. Não importa qual nome o arquivo tem localmente.
+- Sem argumentos = shell interativo (pode falhar dentro do Claude Code se sessão não tem TTY — sugerir o usuário rodar manualmente no terminal).
+
+### Docker no host requer `sudo`
+
+- Usuário `ubuntu` **NÃO** está no grupo `docker`. Qualquer `docker` ou `docker compose` sem `sudo` retorna `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`.
+- `/opt/cpt/.env` é `root:600`. Mesmo se o usuário entrasse no grupo docker, `docker compose` ainda quebra com `open /opt/cpt/.env: permission denied`. **Sempre `sudo`.**
+
+### Compose entrypoint
+
+- Forma canônica: `cd /opt/cpt && sudo docker compose <subcomando> ...`.
+- `/opt/cpt/docker-compose.yml` é symlink para `infra/compose/docker-compose.prod.yml`. **Nunca usar `-f /opt/cpt/docker-compose.prod.yml`** — esse arquivo não existe no path raiz.
+- Compose **só** funciona com `cd /opt/cpt` antes — `.env` é resolvido relativo ao dir do compose file.
+- Project name = nome do dir (`cpt`) → containers nomeados `cpt-{caddy,phoenix,postgres,publisher,redis}-1`.
+
+### Postgres ad-hoc (queries SELECT/EXPLAIN)
+
+Forma direta dispensa compose/.env e é à prova de gotchas:
+
+```bash
+./scripts/ssh.sh 'sudo docker exec -i cpt-postgres-1 psql -U cpt -d cpt -c "SELECT ..."'
+```
+
+- Container: `cpt-postgres-1`
+- User: `cpt` (`POSTGRES_USER`)
+- DB: **`cpt`** — não `cpt_prod`, apesar do path SSM `/cpt/prod/`.
+
+Slash command: `/cpt-psql "<sql>"`. DDL/DML em prod **exige confirmação humana**.
+
 ## Ordem segura para Terraform
 
 ```bash
@@ -52,7 +88,8 @@ Atalho: `/cpt-tf-plan` (slash command).
 - `aws ssm get-parameter --name /cpt/prod/<x>` (com `--with-decryption` se SecureString)
 - `aws s3 ls s3://cpt-backups-*/`
 - `aws lightsail get-instance --instance-name cpt-prod`
-- `docker compose ps`, `docker compose logs --tail=N <service>` (via `/cpt-ssh`)
+- `cd /opt/cpt && sudo docker compose ps`, `sudo docker compose logs --tail=N <service>` (via `/cpt-ssh`)
+- `sudo docker exec -i cpt-postgres-1 psql -U cpt -d cpt -c "SELECT ..."` (read-only; DDL/DML exige confirmação)
 - `gh api /user/packages/container/cpt/versions`
 
 ## Ações que EXIGEM confirmação humana
@@ -60,7 +97,7 @@ Atalho: `/cpt-tf-plan` (slash command).
 - `terraform apply` (qualquer mudança em prod)
 - `terraform destroy` (catastrófico — derruba prod inteira)
 - `aws ssm put-parameter --overwrite` (rotaciona secret)
-- `docker compose down`, `docker compose stop` na instância
+- `sudo docker compose down`, `sudo docker compose stop` na instância
 - `aws lightsail delete-instance` ou `delete-static-ip`
 - `aws s3 rm` em qualquer prefixo
 - `git push origin main` no `infra/`

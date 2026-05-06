@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Re-puxa params SSM /cpt/prod/* → /opt/cpt/.env (modo 0600).
+# Precisa rodar como root (escreve em /opt/cpt/.env e usa /etc/cpt/aws_credentials).
 # Usar após rotacionar um secret no SSM:
 #   1. aws ssm put-parameter --overwrite ...
-#   2. ssh ... "/opt/cpt/infra/scripts/refresh-env.sh"
-#   3. cd /opt/cpt && docker compose up -d   (re-cria containers afetados)
+#   2. ssh ... "sudo /opt/cpt/infra/scripts/refresh-env.sh"
+#   3. cd /opt/cpt && sudo docker compose up -d   (re-cria containers afetados)
 
 set -euo pipefail
 
@@ -25,4 +26,4 @@ aws ssm get-parameters-by-path \
   > "${ENV_FILE}"
 
 chmod 0600 "${ENV_FILE}"
-echo "[$(date -u +%FT%TZ)] refresh concluído. Para aplicar: cd /opt/cpt && docker compose up -d"
+echo "[$(date -u +%FT%TZ)] refresh concluído. Para aplicar: cd /opt/cpt && sudo docker compose up -d"

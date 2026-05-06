@@ -12,8 +12,8 @@
 #   ghcr_token            (GHCR PAT — após rotação, refazer docker login na instância)
 #
 # Após rodar, SSH na instância e executar:
-#   /opt/cpt/infra/scripts/refresh-env.sh
-#   cd /opt/cpt && docker compose up -d <serviço afetado>
+#   sudo /opt/cpt/infra/scripts/refresh-env.sh
+#   cd /opt/cpt && sudo docker compose up -d <serviço afetado>
 
 set -euo pipefail
 
@@ -85,4 +85,4 @@ aws ssm put-parameter \
 
 echo "[$(date -u +%FT%TZ)] /cpt/prod/${SECRET_NAME} atualizado em SSM."
 echo "Próximos passos na instância:"
-echo "  scripts/ssh.sh '/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d ${AFFECTED}'"
+echo "  scripts/ssh.sh 'sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d ${AFFECTED}'"

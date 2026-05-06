@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # Wrapper SSH para o host Lightsail.
 # Lê o IP do `terraform output instance_public_ip` no diretório terraform/.
-# Espera chave em ~/.ssh/cpt-lightsail.pem (ou $CPT_SSH_KEY).
+# Procura chave em $CPT_SSH_KEY, ~/.ssh/cpt-lightsail.pem ou ~/.ssh/cpt-lightsail
+# (nessa ordem). A versão sem .pem é o nome com que `aws lightsail download-key-pair`
+# salva por default em algumas máquinas.
 
 set -euo pipefail
 
-KEY="${CPT_SSH_KEY:-$HOME/.ssh/cpt-lightsail.pem}"
+KEY="${CPT_SSH_KEY:-}"
+if [ -z "$KEY" ]; then
+  for candidate in "$HOME/.ssh/cpt-lightsail.pem" "$HOME/.ssh/cpt-lightsail"; do
+    if [ -f "$candidate" ]; then
+      KEY="$candidate"
+      break
+    fi
+  done
+fi
 TF_DIR="$(cd "$(dirname "$0")/../terraform" && pwd)"
 
-if [ ! -f "$KEY" ]; then
-  echo "chave SSH não encontrada em $KEY" >&2
-  echo "criar com: aws lightsail create-key-pair --key-pair-name cpt-prod-key --region eu-west-2" >&2
+if [ -z "$KEY" ] || [ ! -f "$KEY" ]; then
+  echo "chave SSH não encontrada em ~/.ssh/cpt-lightsail{.pem,} nem em \$CPT_SSH_KEY" >&2
+  echo "ajuste \$CPT_SSH_KEY ou crie com: aws lightsail create-key-pair --key-pair-name cpt-prod-key --region eu-west-2" >&2
   exit 1
 fi
 

@@ -9,7 +9,7 @@ Para cada stream, rodar `XLEN` + `XINFO GROUPS`. Use uma única invocação remo
 para reduzir overhead SSH:
 
 ```bash
-./scripts/ssh.sh 'cd /opt/cpt && cat <<EOF | docker compose exec -T redis redis-cli
+./scripts/ssh.sh 'cd /opt/cpt && cat <<EOF | sudo docker compose exec -T redis redis-cli
 XLEN wh_soccer_events
 XLEN wh_soccer_incidents
 XLEN wh_soccer_event_states
@@ -26,9 +26,11 @@ E para consumer groups (apenas dos que Phoenix consome):
 ```bash
 ./scripts/ssh.sh 'cd /opt/cpt && for s in wh_soccer_events wh_soccer_incidents wh_soccer_event_states wh_soccer_event_settled wh_soccer_upcoming_matches; do
   echo "--- $s ---"
-  docker compose exec -T redis redis-cli XINFO GROUPS $s 2>/dev/null || echo "(grupo não existe)"
+  sudo docker compose exec -T redis redis-cli XINFO GROUPS $s 2>/dev/null || echo "(grupo não existe)"
 done'
 ```
+
+`sudo` obrigatório — usuário `ubuntu` não está no grupo docker e `.env` é `root:600`.
 
 ## Saída
 

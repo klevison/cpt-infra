@@ -56,7 +56,7 @@ aws ssm put-parameter \
   --region eu-west-2
 
 # 3. recarregar .env na instância e reiniciar serviços afetados
-./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d phoenix"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d phoenix"
 ```
 
 `secret_key_base` afeta apenas Phoenix. `internal_token` afeta Phoenix + Publisher.
@@ -67,20 +67,21 @@ Não rodar `/cpt-rotate postgres_password` cegamente. Procedimento:
 
 ```bash
 # 1. backup defensivo
-./scripts/ssh.sh "/opt/cpt/infra/scripts/backup.sh"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/backup.sh"
 
 # 2. gerar nova senha
 NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 32)
 
 # 3. ALTER USER no Postgres ANTES de mudar SSM
-./scripts/ssh.sh "cd /opt/cpt && docker compose exec -T postgres psql -U cpt -d cpt -c \"ALTER USER cpt WITH PASSWORD '$NEW';\""
+#    (docker exec direto: dispensa cd /opt/cpt e leitura de .env)
+./scripts/ssh.sh "sudo docker exec -i cpt-postgres-1 psql -U cpt -d cpt -c \"ALTER USER cpt WITH PASSWORD '$NEW';\""
 
 # 4. atualizar SSM (ambos os params)
 aws ssm put-parameter --name /cpt/prod/postgres_password --type SecureString --value "$NEW" --overwrite --region eu-west-2
 aws ssm put-parameter --name /cpt/prod/database_url --type SecureString --value "ecto://cpt:$NEW@postgres:5432/cpt" --overwrite --region eu-west-2
 
 # 5. refresh env e restart Phoenix (Postgres mantém a senha em memória; só Phoenix precisa reler)
-./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d phoenix"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d phoenix"
 ```
 
 ## Rotacionar `ghcr_token`
@@ -92,8 +93,9 @@ Quando o PAT GitHub expira ou é revogado:
 # 2. atualizar SSM
 aws ssm put-parameter --name /cpt/prod/ghcr_token --type SecureString --value "ghp_NOVO_TOKEN" --overwrite --region eu-west-2
 
-# 3. refazer docker login na instância
-./scripts/ssh.sh '/opt/cpt/infra/scripts/refresh-env.sh && set -a && . /opt/cpt/.env && set +a && echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
+# 3. refazer docker login na instância (precisa root pra ler .env e falar com docker daemon)
+./scripts/ssh.sh 'sudo /opt/cpt/infra/scripts/refresh-env.sh'
+./scripts/ssh.sh 'sudo bash -c "set -a && . /opt/cpt/.env && set +a && echo \$GHCR_TOKEN | docker login ghcr.io -u \$GHCR_USER --password-stdin"'
 ```
 
 ## Rotacionar access key do IAM user `cpt-instance-bootstrap`

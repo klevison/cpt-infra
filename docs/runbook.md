@@ -6,18 +6,26 @@ Para rotacionar segredos veja [`secrets.md`](secrets.md).
 ## SSH
 
 ```bash
-./scripts/ssh.sh                            # shell interativo
-./scripts/ssh.sh "docker compose ps"        # comando único
+./scripts/ssh.sh                                       # shell interativo
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose ps"   # comando único
 ```
 
 Slash command: `/cpt-ssh "comando"`.
 
+**Convenções operacionais críticas** (vide `CLAUDE.md` § "Acesso à instância"):
+
+- Wrapper procura chave em `$CPT_SSH_KEY` → `~/.ssh/cpt-lightsail.pem` → `~/.ssh/cpt-lightsail`.
+- Todo `docker`/`docker compose` no host exige **`sudo`** — usuário `ubuntu` não está no grupo `docker`.
+- Compose só funciona com **`cd /opt/cpt &&`** antes — `.env` é `root:600` lido relativo ao dir.
+- **Nunca** usar `-f /opt/cpt/docker-compose.prod.yml` — esse path não existe. O entrypoint é `/opt/cpt/docker-compose.yml` (symlink para `infra/compose/docker-compose.prod.yml`).
+- Container names: `cpt-{caddy,phoenix,postgres,publisher,redis}-1`.
+
 ## Ver logs
 
 ```bash
-./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f phoenix"
-./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f publisher"
-./scripts/ssh.sh "cd /opt/cpt && docker compose logs --tail=200 -f caddy"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose logs --tail=200 -f phoenix"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose logs --tail=200 -f publisher"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose logs --tail=200 -f caddy"
 ```
 
 Slash command: `/cpt-logs <service>`.
@@ -28,10 +36,10 @@ Limite de retenção: `json-file max-size: 10m, max-file: 5` por container (50 M
 
 ```bash
 # Phoenix — leva 60s pelo stop_grace_period (XGROUP DELCONSUMER no Redis)
-./scripts/ssh.sh "cd /opt/cpt && docker compose restart phoenix"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose restart phoenix"
 
 # Publisher — perda de eventos durante ~30s de reconnect com WH. Evitar em horário de jogo.
-./scripts/ssh.sh "cd /opt/cpt && docker compose restart publisher"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose restart publisher"
 ```
 
 ## Deploy de imagem nova
@@ -63,8 +71,8 @@ Quando `infra/` mudar (ex: ajuste no `docker-compose.prod.yml`), também sincron
 ## Verificar saúde dos Redis Streams
 
 ```bash
-./scripts/ssh.sh "cd /opt/cpt && docker compose exec redis redis-cli XLEN wh_soccer_events"
-./scripts/ssh.sh "cd /opt/cpt && docker compose exec redis redis-cli XINFO GROUPS wh_soccer_events"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose exec redis redis-cli XLEN wh_soccer_events"
+./scripts/ssh.sh "cd /opt/cpt && sudo docker compose exec redis redis-cli XINFO GROUPS wh_soccer_events"
 ```
 
 Streams existentes: `wh_soccer_events`, `wh_soccer_incidents`, `wh_soccer_event_states`,
@@ -90,8 +98,26 @@ Slash command: `/cpt-backup-status`.
 ## Backup manual (forçar agora)
 
 ```bash
-./scripts/ssh.sh "/opt/cpt/infra/scripts/backup.sh"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/backup.sh"
 ```
+
+`sudo` necessário porque o script chama `docker compose exec postgres pg_dump` e usuário `ubuntu` não está no grupo docker. (Quando rodado pelo cron diário, já é como root.)
+
+## Rodar SQL ad-hoc na produção
+
+Read-only (SELECT/EXPLAIN) é seguro. DDL/DML em prod **exige confirmação humana**.
+
+```bash
+./scripts/ssh.sh 'sudo docker exec -i cpt-postgres-1 psql -U cpt -d cpt -c "SELECT count(*) FROM soccer_matches;"'
+```
+
+- Container: `cpt-postgres-1` — User: `cpt` — DB: **`cpt`** (não `cpt_prod`).
+- Aspas simples no SQL? Escapar como `'"'"'` dentro do quote externo.
+- Para query multilinha, gravar arquivo e fazer pipe: `./scripts/ssh.sh 'sudo docker exec -i cpt-postgres-1 psql -U cpt -d cpt' < query.sql`.
+
+`docker exec` direto é preferido em vez de `docker compose exec` — dispensa `cd /opt/cpt` e a leitura de `.env` (que é `root:600`).
+
+Slash command: `/cpt-psql "<sql>"`.
 
 ## Restore
 
@@ -101,10 +127,10 @@ DESTRUTIVO. Veja [`scripts/restore.sh`](../scripts/restore.sh) — pede confirma
 # 1. listar dumps disponíveis
 aws s3 ls s3://cpt-backups-XXXXXXXX/pg/
 
-# 2. SSH no host e rodar restore
+# 2. SSH no host e rodar restore (sudo: o script invoca docker compose)
 ./scripts/ssh.sh
 cd /opt/cpt
-./infra/scripts/restore.sh s3://cpt-backups-XXXXXXXX/pg/cpt-20260430T040000Z.dump.gz
+sudo ./infra/scripts/restore.sh s3://cpt-backups-XXXXXXXX/pg/cpt-20260430T040000Z.dump.gz
 ```
 
 ## Snapshot Lightsail (manual, fora do auto-snapshot diário)
@@ -125,17 +151,17 @@ aws lightsail get-instance-snapshots --region eu-west-2 \
 
 ## Postgres major upgrade (manual)
 
-Postgres não tem label Watchtower de propósito. Roteiro 16 → 17:
+Postgres não tem label Watchtower de propósito. Roteiro 16 → 17 (todos os comandos `docker` no host levam `sudo`):
 
-1. backup pg_dump completo (`scripts/backup.sh`)
-2. `docker compose stop phoenix publisher` (parar leitores)
+1. backup pg_dump completo (`sudo /opt/cpt/infra/scripts/backup.sh`)
+2. `cd /opt/cpt && sudo docker compose stop phoenix publisher` (parar leitores)
 3. snapshot Lightsail (recovery point)
 4. atualizar imagem em `compose/docker-compose.prod.yml`: `postgres:16-alpine` → `postgres:17-alpine`
-5. `docker compose down postgres`
+5. `cd /opt/cpt && sudo docker compose down postgres`
 6. **NÃO** apagar volume `pg_data` — Postgres faz upgrade automático em alguns saltos; em outros (16→17 é OK) pode requerer `pg_upgrade` manual via container intermediário
-7. `docker compose up -d postgres`
-8. validar `docker compose logs postgres`
-9. `docker compose up -d phoenix publisher`
+7. `cd /opt/cpt && sudo docker compose up -d postgres`
+8. validar `cd /opt/cpt && sudo docker compose logs postgres`
+9. `cd /opt/cpt && sudo docker compose up -d phoenix publisher`
 
 Em caso de falha: restore do snapshot Lightsail + dump do passo 1.
 
@@ -151,7 +177,7 @@ Lightsail medium_3_0 = 4 GB RAM. Distribuição esperada:
 
 Margem fina — monitorar:
 ```bash
-./scripts/ssh.sh "free -h && docker stats --no-stream"
+./scripts/ssh.sh "free -h && sudo docker stats --no-stream"
 ```
 
 Se RAM apertar persistentemente, considerar plano `large_3_0` ($44, 8 GB).

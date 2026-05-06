@@ -131,7 +131,7 @@ config :cpt, CptWeb.Endpoint,
 Phoenix vai entrar em loop de redirect (Caddy faz HTTPS->Phoenix HTTP, Phoenix
 tenta forçar HTTPS de novo).
 
-Commit + push em `cpt/`, aguardar build, `docker compose pull phoenix && up -d`.
+Commit + push em `cpt/`, aguardar build, `cd /opt/cpt && sudo docker compose pull phoenix && sudo docker compose up -d phoenix`.
 
 ## Passo 5 — Restaurar `cp Caddyfile` em `terraform/user_data.sh`
 
@@ -162,7 +162,7 @@ O apply vai:
 ## Passo 7 — Aplicar mudanças no host
 
 ```bash
-./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d"
 ```
 
 Isso re-puxa SSM (pega `phx_host`/`scheme`/`port_url` atualizados), aplica o
@@ -190,7 +190,7 @@ ACME no primeiro request HTTP (60–90s).
    - Browser DevTools → `wss://cptlive.com/live/websocket` conecta sem erro
 5. **Containers:**
    ```bash
-   ./scripts/ssh.sh "cd /opt/cpt && docker compose ps"
+   ./scripts/ssh.sh "cd /opt/cpt && sudo docker compose ps"
    # Deve listar 5 services: caddy, phoenix, publisher, postgres, redis
    ```
 
@@ -198,7 +198,7 @@ ACME no primeiro request HTTP (60–90s).
 
 Reverter as 4 mudanças de arquivo via `git revert <sha-do-commit>` e:
 ```bash
-./scripts/ssh.sh "/opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && docker compose up -d"
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d"
 ```
 Volta pra MVP IP-only sem perder dados (Phoenix passa a expor `host:80` direto).
 

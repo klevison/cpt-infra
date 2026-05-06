@@ -152,13 +152,13 @@ openssl s_client -connect cptlive.com:443 < /dev/null 2>/dev/null \
 # issuer=C=US, O=Let's Encrypt, CN=...
 
 # Publisher conectado na WH
-../scripts/ssh.sh "cd /opt/cpt && docker compose logs publisher --tail=50 | grep -E '(CONNECTED|WS connected)'"
+../scripts/ssh.sh "cd /opt/cpt && sudo docker compose logs publisher --tail=50 | grep -E '(CONNECTED|WS connected)'"
 
 # Streams populando
-../scripts/ssh.sh "cd /opt/cpt && docker compose exec redis redis-cli XLEN wh_soccer_events"
+../scripts/ssh.sh "cd /opt/cpt && sudo docker compose exec redis redis-cli XLEN wh_soccer_events"
 
 # Phoenix consumindo
-../scripts/ssh.sh "cd /opt/cpt && docker compose exec redis redis-cli XINFO GROUPS wh_soccer_events"
+../scripts/ssh.sh "cd /opt/cpt && sudo docker compose exec redis redis-cli XINFO GROUPS wh_soccer_events"
 ```
 
 Atalhos:
