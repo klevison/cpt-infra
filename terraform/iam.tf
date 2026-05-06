@@ -41,12 +41,16 @@ resource "aws_iam_user_policy" "ssm_read" {
         Sid    = "DecryptSsmKms"
         Effect = "Allow"
         Action = ["kms:Decrypt"]
-        # Alias ARN da managed CMK que SSM usa pra SecureString. IAM resolve
-        # alias -> key em runtime. Usamos alias (em vez de data "aws_kms_key")
-        # pra evitar chicken-and-egg: em conta fresca, alias/aws/ssm so existe
-        # apos a primeira SecureString — data source falharia em `plan` antes
-        # disso. Condition kms:ViaService trava o uso ao SSM.
-        Resource = "arn:aws:kms:${var.aws_region}:${local.account_id}:alias/aws/ssm"
+        # SecureString usa a chave gerenciada da AWS (alias/aws/ssm). Resource
+        # `key/*` parece frouxo, mas a Condition kms:ViaService trava o uso
+        # ao service principal do SSM — efetivamente "qualquer key, mas so
+        # se SSM estiver chamando em nosso nome".
+        #
+        # Por que NAO usamos alias ARN aqui: testado e confirmado falhar.
+        # IAM matcha alias ARN apenas quando a operacao referencia o alias
+        # explicitamente. SSM chama KMS pelo key ARN underlying, entao
+        # `Resource = "...alias/aws/ssm"` retorna AccessDenied no Decrypt.
+        Resource = "arn:aws:kms:${var.aws_region}:${local.account_id}:key/*"
         Condition = {
           StringEquals = {
             "kms:ViaService" = "ssm.${var.aws_region}.amazonaws.com"
