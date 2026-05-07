@@ -71,6 +71,22 @@ chmod 600 ~/.ssh/cpt-lightsail.pem
 
 Em https://github.com/settings/tokens (classic), escopo apenas `read:packages`. Anotar — só é mostrado uma vez.
 
+## 4b. Configurar Brevo (envio de email transacional)
+
+`Cpt.Mailer` usa `Swoosh.Adapters.Brevo` (API HTTP) e exige `BREVO_API_KEY` no env
+— em prod o Phoenix usa `System.fetch_env!`, ou seja, **não sobe sem a var**.
+
+1. Criar conta em https://brevo.com (free tier 300 envios/dia).
+2. **Autenticar domínio** — Settings → Remetentes, Domínios e IPs → aba **Domínios** →
+   `cptlive.com` → seguir registros DKIM/DMARC e adicionar como TXT no Cloudflare DNS
+   (modo "DNS only", não proxied). Aguardar verificação Brevo.
+3. **Verificar remetente** — aba **Remetentes** → adicionar `naoresponda@cptlive.com`
+   (valor hardcoded em `runtime.exs` do `cpt/`). Brevo manda link de confirmação;
+   ativar Cloudflare Email Routing apontando `naoresponda@cptlive.com` → seu email
+   pessoal para receber o link.
+4. **Gerar API key** — Settings → SMTP & API → aba **Chaves de API** (não SMTP) →
+   "Gerar nova chave" → copiar (formato `xkeysib-...`). Guardar — só aparece uma vez.
+
 ## 5. Preparar `infra/` como repo público no GitHub
 
 ```bash
@@ -103,7 +119,9 @@ gh api /user/packages/container/wh-publisher/versions --jq '.[0].metadata.contai
 ```bash
 cd ~/Development/cpt_bet/infra/terraform
 cp terraform.tfvars.example terraform.tfvars
-# editar terraform.tfvars: ghcr_token = "ghp_..." (PAT do passo 4)
+# editar terraform.tfvars:
+#   ghcr_token    = "ghp_..."     (PAT do passo 4)
+#   brevo_api_key = "xkeysib-..." (API key do passo 4b)
 ```
 
 `terraform.tfvars` é gitignored. Confirmar com `git status` que NÃO aparece staged.

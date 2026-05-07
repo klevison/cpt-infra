@@ -266,9 +266,15 @@ Já documentadas em `config/runtime.exs`. O `infra/` injeta via `/opt/cpt/.env` 
 | `PHX_SCHEME` | `/cpt/prod/phx_scheme` | `https` em produção (Caddy faz TLS), `http` em fallback IP-only |
 | `PHX_PORT_URL` | `/cpt/prod/phx_port_url` | `443` em produção, `80` em fallback IP-only |
 | `REDIS_URL` | `/cpt/prod/redis_url` | `redis://redis:6379/0` |
+| `BREVO_API_KEY` | `/cpt/prod/brevo_api_key` | API HTTP transacional (Swoosh.Adapters.Brevo). **`fetch_env!` — sem ela Phoenix prod não sobe.** |
 | `PHX_SERVER` | `true` (Compose) | Phoenix listen ativo |
 | `MIX_ENV` | `prod` (Compose) | |
 | `PORT` | `4000` (Compose) | |
+
+> `Cpt.Mailer` em `runtime.exs` tem `default_from: {"CPT", "naoresponda@cptlive.com"}`
+> hardcoded. O envio quebra silenciosamente se o remetente não estiver verificado no
+> painel Brevo (Settings → Remetentes) e o domínio `cptlive.com` autenticado (DKIM no DNS
+> do Cloudflare). Antes do primeiro deploy que use o Mailer, confirmar ambos.
 
 > `runtime.exs` lê `PHX_SCHEME`/`PHX_PORT_URL` em `Endpoint.url` para que Phoenix
 > gere links coerentes com a porta exposta externamente (produção atual:

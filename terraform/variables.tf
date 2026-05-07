@@ -96,6 +96,17 @@ variable "ghcr_token" {
   sensitive   = true
 }
 
+variable "brevo_api_key" {
+  description = <<-EOT
+    Chave de API HTTP transacional do Brevo (prefixo xkeysib-...). Consumida pelo
+    Phoenix via Swoosh.Adapters.Brevo. Gerada manualmente em Settings -> SMTP & API
+    -> Chaves de API. Bootstrap inicial via tfvars (gitignored); rotacao posterior
+    via `/cpt-rotate brevo_api_key` (ignore_changes = [value] no SSM).
+  EOT
+  type        = string
+  sensitive   = true
+}
+
 variable "cpt_image_tag" {
   description = "Tag da imagem Phoenix em GHCR. Deploy manual via SSH apos build GHA."
   type        = string

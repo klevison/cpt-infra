@@ -36,6 +36,11 @@ publisher_image_tag = "latest"
 # NUNCA commitar este arquivo.
 ghcr_token = "ghp_REPLACE_ME"
 
+# OBRIGATÓRIO — Chave de API HTTP transacional do Brevo (prefixo xkeysib-...).
+# Gerar em Brevo > Settings > SMTP & API > Chaves de API.
+# Consumida pelo Phoenix via Swoosh.Adapters.Brevo (BREVO_API_KEY no .env).
+brevo_api_key = "xkeysib-REPLACE_ME"
+
 # Restringir SSH ao seu IP após primeiro acesso (ex: ["203.0.113.42/32"])
 allowed_ssh_cidrs = ["0.0.0.0/0"]
 

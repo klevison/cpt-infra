@@ -10,11 +10,12 @@ Wrapper guiado para rotação de secrets. Aceita:
 - `secret_key_base` — Phoenix
 - `internal_token` — Phoenix + Publisher
 - `ghcr_token` — pede PAT novo via prompt
+- `brevo_api_key` — pede API key Brevo (xkeysib-...) via prompt; afeta Phoenix
 - `postgres_password` — **bloqueado**, requer ALTER USER manual (ver `docs/secrets.md`)
 
 ## O que fazer
 
-1. Validar `$ARGUMENTS` é um dos 4 nomes acima. Se inválido ou vazio, listar e parar.
+1. Validar `$ARGUMENTS` é um dos 5 nomes acima. Se inválido ou vazio, listar e parar.
 
 2. Se `postgres_password`, **NÃO PROSSEGUIR**. Mostrar instrução para o usuário:
    "Rotação de postgres_password requer ALTER USER no banco antes do SSM. Veja
@@ -44,6 +45,7 @@ Wrapper guiado para rotação de secrets. Aceita:
 ## Notas
 
 - **Nunca** logar o valor do secret novo no chat.
-- `bootstrap-secrets.sh` para `ghcr_token` pede o PAT em prompt interativo (`read -s`).
-  Se a sessão Claude Code não tem TTY, sugerir o usuário rodar manualmente:
-  `./scripts/bootstrap-secrets.sh rotate ghcr_token`.
+- `bootstrap-secrets.sh` para `ghcr_token` e `brevo_api_key` pede o valor em prompt
+  interativo (`read -s`). Se a sessão Claude Code não tem TTY, sugerir o usuário
+  rodar manualmente:
+  `./scripts/bootstrap-secrets.sh rotate <secret_name>`.

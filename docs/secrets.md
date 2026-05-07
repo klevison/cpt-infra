@@ -13,6 +13,7 @@ KMS `alias/aws/ssm`). A instância acessa via **IAM user dedicado**
 | `/cpt/prod/postgres_password` | random_password TF (length 32) | requer ALTER USER | Postgres + DATABASE_URL |
 | `/cpt/prod/database_url` | derivado postgres_password | derivado | Phoenix |
 | `/cpt/prod/ghcr_token` | var.ghcr_token (terraform.tfvars) | sim | docker login no boot + deploys manuais |
+| `/cpt/prod/brevo_api_key` | var.brevo_api_key (terraform.tfvars) — painel Brevo | sim | Phoenix Mailer (Swoosh.Adapters.Brevo) |
 | `/cpt/prod/last_backup_at` | escrito pelo backup.sh | n/a (status) | observabilidade |
 
 ## Listar parâmetros
@@ -83,6 +84,29 @@ aws ssm put-parameter --name /cpt/prod/database_url --type SecureString --value 
 # 5. refresh env e restart Phoenix (Postgres mantém a senha em memória; só Phoenix precisa reler)
 ./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d phoenix"
 ```
+
+## Rotacionar `brevo_api_key`
+
+A chave do Brevo é gerada no painel (não é random local) e a rotação é manual:
+
+```bash
+# 1. Painel Brevo -> Settings -> SMTP & API -> Chaves de API
+#    -> "Gerar uma nova chave de API" (escopo Transactional Email)
+#    -> COPIAR (só aparece 1 vez). Conferir prefixo xkeysib-...
+#    -> Excluir/desativar a chave antiga só APÓS o restart bem-sucedido.
+
+# 2. Atualizar SSM via wrapper (valida prefixo, pede via stdin sem ecoar)
+./scripts/bootstrap-secrets.sh rotate brevo_api_key
+
+# 3. Refresh env + restart Phoenix
+./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh && cd /opt/cpt && sudo docker compose up -d phoenix"
+
+# 4. Confirmar com smoke test (ex.: enviar email de teste por uma rota interna)
+```
+
+> Atenção ao prefixo: Brevo expõe duas famílias de credenciais — `xkeysib-...` (API
+> HTTP transacional, usada pelo `Swoosh.Adapters.Brevo`) e `xsmtpsib-...` (relay SMTP,
+> incompatível com o adapter atual). O wrapper aborta se o prefixo for diferente.
 
 ## Rotacionar `ghcr_token`
 

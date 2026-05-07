@@ -71,6 +71,20 @@ resource "aws_ssm_parameter" "ghcr_token" {
   tier  = "Standard"
 }
 
+# Bootstrap inicial via var.brevo_api_key. Rotacao posterior eh manual
+# (painel Brevo gera key nova) — `ignore_changes = [value]` evita que
+# `terraform apply` reverta a key rotada quando tfvars ficar defasado.
+resource "aws_ssm_parameter" "brevo_api_key" {
+  name  = "${local.ssm_prefix}/brevo_api_key"
+  type  = "SecureString"
+  value = var.brevo_api_key
+  tier  = "Standard"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # Configs gerenciados (Terraform reconcilia se mudar)
 
 # Em bootstrap sem dominio (var.domain = ""), o IP estatico do Lightsail

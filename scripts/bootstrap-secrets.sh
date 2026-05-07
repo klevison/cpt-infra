@@ -10,6 +10,7 @@
 #   internal_token        (Phoenix + Publisher — restart ambos)
 #   postgres_password     (Postgres — atenção: aplicação destrutiva — vide docs/secrets.md)
 #   ghcr_token            (GHCR PAT — após rotação, refazer docker login na instância)
+#   brevo_api_key         (Brevo API HTTP — restart phoenix)
 #
 # Após rodar, SSH na instância e executar:
 #   sudo /opt/cpt/infra/scripts/refresh-env.sh
@@ -24,7 +25,7 @@ usage() {
   cat <<EOF
 uso: $0 rotate <secret_name>
 
-secret_name: secret_key_base | internal_token | postgres_password | ghcr_token
+secret_name: secret_key_base | internal_token | postgres_password | ghcr_token | brevo_api_key
 
 Exemplo:
   $0 rotate secret_key_base
@@ -59,6 +60,18 @@ EOF
     echo
     [ -n "$NEW_VALUE" ] || { echo "vazio, abortando." >&2; exit 1; }
     AFFECTED="docker login (refazer manualmente após refresh-env)"
+    ;;
+  brevo_api_key)
+    # Gerada no painel Brevo (Settings -> SMTP & API -> Chaves de API).
+    # Prefixo esperado xkeysib-... — adapter Swoosh.Adapters.Brevo recusa SMTP key (xsmtpsib-).
+    read -r -s -p "Cole a nova Brevo API key (xkeysib-...): " NEW_VALUE
+    echo
+    [ -n "$NEW_VALUE" ] || { echo "vazio, abortando." >&2; exit 1; }
+    case "$NEW_VALUE" in
+      xkeysib-*) ;;
+      *) echo "prefixo nao parece API key Brevo (esperado xkeysib-). Abortando." >&2; exit 1 ;;
+    esac
+    AFFECTED="phoenix"
     ;;
   *)
     echo "secret_name inválido: $SECRET_NAME" >&2

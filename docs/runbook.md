@@ -61,6 +61,17 @@ Limite de retenção: `json-file max-size: 10m, max-file: 5` por container (50 M
 
 `docker compose pull` traz só layers diferentes (rápido). `up -d` re-cria container que mudou; outros ficam intactos. Phoenix tem `stop_grace_period: 60s` — restart leva ~60s respeitando `XGROUP DELCONSUMER` em `terminate/2`.
 
+> **Atenção quando a imagem nova exige uma env var nova** (ex: `BREVO_API_KEY` adicionada
+> via `System.fetch_env!` no `runtime.exs`). Sequência obrigatória:
+>
+> 1. Garantir o param em SSM (geralmente `terraform apply` adicionando `aws_ssm_parameter`).
+> 2. `./scripts/ssh.sh "sudo /opt/cpt/infra/scripts/refresh-env.sh"` — popular `/opt/cpt/.env`.
+> 3. **Só então** `docker compose pull <serviço> && up -d <serviço>`.
+>
+> Inverter os passos 2 e 3 = Phoenix em crash loop (release `bin/cpt start` falha em
+> `fetch_env!` antes de abrir a porta 4000). Verificar com `sudo docker compose logs phoenix`
+> — `RuntimeError` mencionando o nome da var.
+
 Quando `infra/` mudar (ex: ajuste no `docker-compose.prod.yml`), também sincronizar o repo na instância antes do `up -d`:
 
 ```bash
