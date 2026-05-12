@@ -100,7 +100,7 @@ jobs:
 ### 3. Remover defaults `PROXY_*` do código
 
 Procurar `PROXY_HOST`, `PROXY_PORT`, `PROXY_USER`, `PROXY_PASS` e remover qualquer
-valor default que aponte para `35.176.126.130:12321` ou similar. As variáveis
+valor default que aponte para `35.178.91.147:12321` ou similar. As variáveis
 inteiras podem ser deletadas — TinyProxy não existe mais.
 
 ```bash
