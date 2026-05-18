@@ -196,3 +196,86 @@ Se RAM apertar persistentemente, considerar plano `large_3_0` ($44, 8 GB).
 ## Apagar instância (catastrófico)
 
 NUNCA rodar sem confirmação humana e backup recente. Veja `terraform destroy` em [`secrets.md`](secrets.md).
+
+## Recriar static IP (recovery de WAF/IP ban)
+
+**Quando**: o IP do Lightsail (`35.178.28.41`) entra em deny list de algum provider externo (WAF, CloudFront, geo-block) e não relaxa sozinho em 24-72h após reduzir volume de requests. Sintomas: probes diretos do host retornam 403/451 sistemático mesmo com payload normal; outros IPs UK na mesma rede passam.
+
+**Impacto**: ~5-15min de downtime durante propagação DNS Cloudflare + revalidação automática Caddy/ACME. **Programar fora de horário de pico** se possível.
+
+### Pré-requisitos
+
+- TTL Cloudflare DNS apex (`cptlive.com` A `@` e `www`) em ≤300s. Se "Auto" no plano free, é 300s — OK. Idealmente baixar pra 60s 24h antes pra acelerar propagação.
+- Backup recente do Postgres (cron 04:00 UTC roda sozinho; verificar `aws s3 ls s3://cpt-backups-*/ | tail -3`).
+- Acesso AWS válido: `aws sts get-caller-identity` retorna o perfil esperado.
+
+### Playbook
+
+1. **Aviso ao time** (Slack/canal de ops): "Vou recriar o static IP do Lightsail por motivo X. Janela ~15min começando agora."
+
+2. **Editar `infra/terraform/lightsail.tf`** — comentar `prevent_destroy = true` do `aws_lightsail_static_ip.cpt` (mantém o da `aws_lightsail_instance`):
+   ```hcl
+   resource "aws_lightsail_static_ip" "cpt" {
+     name = "${var.instance_name}-ip"
+     lifecycle {
+       # TEMPORARIAMENTE desativado pra recreate por WAF ban — restaurar em commit subsequente
+       # prevent_destroy = true
+     }
+   }
+   ```
+
+3. **Validar e aplicar**:
+   ```bash
+   cd terraform/
+   terraform fmt -check
+   terraform validate
+   terraform plan -out=tfplan -replace=aws_lightsail_static_ip.cpt -lock-timeout=60s
+   # REVISAR PLAN — deve mostrar 1 destroy + 1 create do static_ip + 1 replace do attachment
+   terraform apply tfplan
+   ```
+
+4. **Capturar novo IP**:
+   ```bash
+   aws lightsail get-static-ip --static-ip-name cpt-prod-ip --query 'staticIp.ipAddress' --output text
+   ```
+
+5. **Atualizar Cloudflare DNS** (`cptlive.com`):
+   - Dashboard ou via API: editar A records `@` e `www` pro novo IP.
+   - Setar TTL=60s temporariamente.
+   - Confirmar `dig +short cptlive.com @1.1.1.1` retorna o novo IP em ~5min.
+
+6. **Validar do host** (instância mesma; só o IP mudou):
+   ```bash
+   ./scripts/ssh.sh 'curl -s ifconfig.me'    # deve mostrar novo IP
+   ```
+
+7. **Probar endpoint problemático** (ex: NGS William Hill):
+   ```bash
+   ./scripts/ssh.sh 'curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+     -H "user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36" \
+     "https://sports.williamhill.com/data/ngs/matches-competitions/matches/en-gb/OB_SP9?sortKey=competition&day=today&marketType=Match+Betting&page=0&availableDays=true"'
+   ```
+   Esperado **HTTP 200**. Se 403: AWS pode ter reciclado IP previamente banido — repetir passos 3-7 (taint + apply do static_ip pega outro IP do pool).
+
+8. **Caddy + Let's Encrypt**: cert atual válido até expirar (LE 90d, renewal a 30d antes). Sem necessidade de revalidar durante o swap. Caddy revalida automático quando renovação for solicitada e DNS já estará propagado. Para forçar revalidação manual:
+   ```bash
+   ./scripts/ssh.sh 'cd /opt/cpt && sudo docker compose restart caddy'
+   ```
+
+9. **Restaurar `prevent_destroy = true`** em commit dedicado:
+   ```bash
+   # editar terraform/lightsail.tf descomentando prevent_destroy
+   git add terraform/lightsail.tf
+   git commit -m "infra(lightsail): restaura prevent_destroy do static_ip pos-recreate"
+   git push
+   terraform plan   # deve dar "no changes"
+   ```
+
+10. **(Opcional)** Pós-validação 24h estável: restaurar TTL Cloudflare pra "Auto".
+
+### Notas
+
+- A **instância** Lightsail **não é tocada** — só o static IP é recriado e re-anexado. Volumes (`pg_data`, `redis_data`), containers, configurações no host permanecem intactos.
+- Não há perda de dados em Postgres/Redis.
+- Sessões WS Diffusion do publisher cairão durante a janela e reconectam automaticamente (`MAX_RECONNECTS=5` no `.env`).
+- Heartbeat de `wh_soccer_matches` (Fase 7 do publisher) pode dar gap de ~5-15min — `EndedSweeper` (cutoff 180s) marcará temporariamente matches como `:ended`. Voltam a `:live` no próximo heartbeat pós-reconnect via `apply_match_list/1`.
