@@ -205,7 +205,7 @@ O publisher **NÃO PODE** alterar nomes/shapes:
 | `wh_soccer_stats` | 500000 | snapshots de stats |
 | `wh_soccer_upcoming_matches` | 10000 | próximos jogos |
 
-Pub/sub channels: `wh_soccer_matches` (lista 20s), `wh_soccer_featured_changes` (delta featured).
+Pub/sub channels: `wh_soccer_matches` (lista featured-only, heartbeat 60s sem HTTP — Fase 7 2026-05-18), `wh_soccer_featured_changes` (delta featured, fast-path <100ms → `_schedule_featured_subscribe`).
 
 ## Validar localmente
 
